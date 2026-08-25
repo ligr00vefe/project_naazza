@@ -6,6 +6,8 @@ import 'app/bootstrap/bootstrap.dart';
 import 'core/config/app_config.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/tracking_profile/data/tracking_profile_repository.dart';
+import 'features/records/data/records_repository.dart';
+import 'features/meal_analysis/data/meal_analysis_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +19,12 @@ Future<void> main() async {
         authRepositoryProvider.overrideWithValue(dependencies.authRepository),
         trackingProfileRepositoryProvider.overrideWithValue(
           dependencies.trackingProfileRepository,
+        ),
+        recordsRepositoryProvider.overrideWithValue(
+          dependencies.recordsRepository,
+        ),
+        mealAnalysisRepositoryProvider.overrideWithValue(
+          dependencies.mealAnalysisRepository,
         ),
       ],
       child: const NaazzaApp(),
