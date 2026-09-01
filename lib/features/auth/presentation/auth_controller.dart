@@ -18,13 +18,32 @@ class AuthController extends AsyncNotifier<void> {
     );
   }
 
-  Future<void> signUp(String email, String password) async {
+  Future<SignUpResult?> signUp(String email, String password) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => ref
+    try {
+      final result = await ref
           .read(authRepositoryProvider)
-          .signUp(email: email.trim(), password: password),
-    );
+          .signUp(email: email.trim(), password: password);
+      state = const AsyncData(null);
+      return result;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      return null;
+    }
+  }
+
+  Future<bool> resendSignUpConfirmation(String email) async {
+    state = const AsyncLoading();
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .resendSignUpConfirmation(email: email.trim());
+      state = const AsyncData(null);
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      return false;
+    }
   }
 
   Future<void> signOut() async {

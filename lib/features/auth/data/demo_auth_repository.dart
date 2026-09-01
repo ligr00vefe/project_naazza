@@ -23,8 +23,16 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signUp({required String email, required String password}) =>
-      signIn(email: email, password: password);
+  Future<SignUpResult> signUp({
+    required String email,
+    required String password,
+  }) async {
+    await signIn(email: email, password: password);
+    return const SignUpResult(requiresEmailConfirmation: false);
+  }
+
+  @override
+  Future<void> resendSignUpConfirmation({required String email}) async {}
 
   @override
   Future<void> signOut() async {
