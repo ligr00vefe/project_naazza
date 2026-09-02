@@ -7,8 +7,6 @@ import 'package:naazza/app/app.dart';
 import 'package:naazza/core/config/app_config.dart';
 import 'package:naazza/features/auth/data/auth_repository.dart';
 import 'package:naazza/features/auth/data/demo_auth_repository.dart';
-import 'package:naazza/features/auth/domain/auth_user.dart';
-import 'package:naazza/features/auth/presentation/login_page.dart';
 import 'package:naazza/features/records/data/demo_records_repository.dart';
 import 'package:naazza/features/records/data/records_repository.dart';
 import 'package:naazza/features/records/domain/health_record.dart';
@@ -20,42 +18,21 @@ import 'package:naazza/features/tracking_profile/data/tracking_profile_repositor
 import 'package:naazza/features/visits/domain/visit_preparation.dart';
 
 void main() {
-  testWidgets('회원가입 후 이메일 인증 대기와 재전송 흐름을 안내한다', (tester) async {
-    final authRepository = _ConfirmationAuthRepository();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          appConfigProvider.overrideWithValue(
-            const AppConfig(
-              supabaseUrl: 'https://example.supabase.co',
-              supabasePublishableKey: 'publishable-key',
-            ),
-          ),
-          authRepositoryProvider.overrideWithValue(authRepository),
-        ],
-        child: const MaterialApp(home: LoginPage()),
+  test('데모 회원가입은 이메일 인증 확인 전 로그인을 완료하지 않는다', () async {
+    final repository = DemoAuthRepository();
+
+    await repository.signUp(email: 'verify@example.com', password: 'password');
+    expect(repository.currentUser, isNull);
+    expect(
+      await repository.refreshEmailVerification(
+        email: 'verify@example.com',
+        password: 'password',
       ),
+      isTrue,
     );
-    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('처음인가요? 이메일로 회원가입'));
-    await tester.pump();
-    expect(find.text('가입하고 인증 메일 받기'), findsOneWidget);
-    expect(find.textContaining('인증 메일을 보내드려요'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextField).at(0), 'user@example.com');
-    await tester.enterText(find.byType(TextField).at(1), 'password1');
-    await tester.enterText(find.byType(TextField).at(2), 'password1');
-    await tester.tap(find.text('가입하고 인증 메일 받기'));
-    await tester.pump();
-
-    expect(find.text('인증 메일을 보냈어요'), findsOneWidget);
-    expect(find.text('user@example.com'), findsOneWidget);
-    expect(authRepository.signUpCount, 1);
-
-    await tester.tap(find.text('인증 메일 다시 보내기'));
-    await tester.pump();
-    expect(authRepository.resendCount, 1);
+    await repository.signIn(email: 'verify@example.com', password: 'password');
+    expect(repository.isEmailVerified, isTrue);
   });
 
   testWidgets('로그인 후 맞춤 추적 프로필을 저장하고 홈으로 이동한다', (tester) async {
@@ -81,7 +58,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('나의 기록이 내일의 변화를 만들어요'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, '로그인'));
+    await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
     expect(find.text('1. 관리 목표를 선택해 주세요'), findsOneWidget);
     await tester.tap(find.text('크론병 / 궤양성 대장염'));
@@ -289,38 +266,4 @@ void main() {
     expect(summary.topSymptoms['복통'], 1);
     expect(summary.questions.single, contains('약 용량'));
   });
-}
-
-class _ConfirmationAuthRepository implements AuthRepository {
-  int signUpCount = 0;
-  int resendCount = 0;
-
-  @override
-  AuthUser? get currentUser => null;
-
-  @override
-  Stream<AuthUser?> get authStateChanges => Stream.value(null);
-
-  @override
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {}
-
-  @override
-  Future<SignUpResult> signUp({
-    required String email,
-    required String password,
-  }) async {
-    signUpCount += 1;
-    return const SignUpResult(requiresEmailConfirmation: true);
-  }
-
-  @override
-  Future<void> resendSignUpConfirmation({required String email}) async {
-    resendCount += 1;
-  }
-
-  @override
-  Future<void> signOut() async {}
 }

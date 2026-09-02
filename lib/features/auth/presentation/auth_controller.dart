@@ -18,32 +18,35 @@ class AuthController extends AsyncNotifier<void> {
     );
   }
 
-  Future<SignUpResult?> signUp(String email, String password) async {
+  Future<void> signUp(String email, String password) async {
     state = const AsyncLoading();
-    try {
-      final result = await ref
+    state = await AsyncValue.guard(
+      () => ref
           .read(authRepositoryProvider)
-          .signUp(email: email.trim(), password: password);
-      state = const AsyncData(null);
-      return result;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return null;
-    }
+          .signUp(email: email.trim(), password: password),
+    );
   }
 
-  Future<bool> resendSignUpConfirmation(String email) async {
+  Future<void> resendEmailVerification(String email) async {
     state = const AsyncLoading();
-    try {
-      await ref
+    state = await AsyncValue.guard(
+      () => ref
           .read(authRepositoryProvider)
-          .resendSignUpConfirmation(email: email.trim());
-      state = const AsyncData(null);
-      return true;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return false;
-    }
+          .resendEmailVerification(email: email.trim()),
+    );
+  }
+
+  Future<bool> refreshEmailVerification(String email, String password) async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(
+      () => ref
+          .read(authRepositoryProvider)
+          .refreshEmailVerification(email: email.trim(), password: password),
+    );
+    state = result.hasError
+        ? AsyncError(result.error!, result.stackTrace ?? StackTrace.current)
+        : const AsyncData(null);
+    return result.value ?? false;
   }
 
   Future<void> signOut() async {

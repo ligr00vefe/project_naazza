@@ -5,9 +5,13 @@ import 'auth_repository.dart';
 class DemoAuthRepository implements AuthRepository {
   final _controller = StreamController<AuthUser?>.broadcast();
   AuthUser? _currentUser;
+  String? _pendingEmail;
 
   @override
   AuthUser? get currentUser => _currentUser;
+
+  @override
+  bool get isEmailVerified => _currentUser?.isEmailVerified ?? false;
 
   @override
   Stream<AuthUser?> get authStateChanges async* {
@@ -23,16 +27,19 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<SignUpResult> signUp({
-    required String email,
-    required String password,
-  }) async {
-    await signIn(email: email, password: password);
-    return const SignUpResult(requiresEmailConfirmation: false);
+  Future<void> signUp({required String email, required String password}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    _pendingEmail = email;
   }
 
   @override
-  Future<void> resendSignUpConfirmation({required String email}) async {}
+  Future<void> resendEmailVerification({required String email}) async {}
+
+  @override
+  Future<bool> refreshEmailVerification({
+    required String email,
+    required String password,
+  }) async => _pendingEmail == email;
 
   @override
   Future<void> signOut() async {
