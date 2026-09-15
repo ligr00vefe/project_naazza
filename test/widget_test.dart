@@ -18,23 +18,12 @@ import 'package:naazza/features/tracking_profile/data/tracking_profile_repositor
 import 'package:naazza/features/visits/domain/visit_preparation.dart';
 
 void main() {
-  test('데모 회원가입은 이메일 인증 확인 전 로그인을 완료하지 않는다', () async {
+  test('데모 회원가입은 아이디와 PIN으로 바로 로그인한다', () async {
     final repository = DemoAuthRepository();
 
-    await repository.signUp(email: 'verify@example.com', password: 'password');
-    expect(repository.currentUser, isNull);
-    expect(
-      await repository.refreshEmailVerification(
-        email: 'verify@example.com',
-        password: 'password',
-      ),
-      isTrue,
-    );
-
-    await repository.signIn(email: 'verify@example.com', password: 'password');
-    expect(repository.isEmailVerified, isTrue);
+    await repository.signUp(username: 'tester', pin: '1234');
+    expect(repository.currentUser?.username, 'tester');
   });
-
   testWidgets('로그인 후 맞춤 추적 프로필을 저장하고 홈으로 이동한다', (tester) async {
     final trackingRepository = DemoTrackingProfileRepository();
     final recordsRepository = DemoRecordsRepository();
@@ -58,10 +47,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('나의 기록이 내일의 변화를 만들어요'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).at(0), 'demo_user');
+    await tester.enterText(find.byType(TextField).at(1), '1234');
     await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
     expect(find.text('1. 관리 목표를 선택해 주세요'), findsOneWidget);
-    await tester.tap(find.text('크론병 / 궤양성 대장염'));
+    await tester.tap(find.text('장 컨디션 관리'));
     await tester.pump();
     await tester.scrollUntilVisible(
       find.text('배변'),
@@ -95,9 +86,18 @@ void main() {
     expect(find.text('식사 직접 입력'), findsOneWidget);
     await tester.enterText(find.byType(TextField).at(0), '제육볶음');
     await tester.enterText(find.byType(TextField).at(2), '520');
+    await tester.scrollUntilVisible(
+      find.text('소식했어요'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
     await tester.tap(find.text('기록 저장하기'));
     await tester.pumpAndSettle();
-    expect(await recordsRepository.list('demo-user'), hasLength(1));
+    final savedMeals = await recordsRepository.list('demo-user');
+    expect(savedMeals, hasLength(1));
+    expect(savedMeals.single.data['small_meal'], isTrue);
   });
 
   test('데모 기록 저장소가 생성·수정·삭제를 지원한다', () async {

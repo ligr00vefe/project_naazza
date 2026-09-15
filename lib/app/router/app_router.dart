@@ -22,9 +22,8 @@ import '../../features/visits/presentation/visit_preparation_page.dart';
 import '../../features/visits/presentation/visit_record_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final profileState = ref.watch(trackingProfileProvider);
-  return GoRouter(
+  late final GoRouter router;
+  router = GoRouter(
     initialLocation: '/login',
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
@@ -82,6 +81,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (_, state) {
+      final authState = ref.read(authStateProvider);
+      final profileState = ref.read(trackingProfileProvider);
       if (authState.isLoading) return null;
       final signedIn = authState.value != null;
       final onLogin = state.matchedLocation == '/login';
@@ -89,10 +90,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!signedIn && !onLogin) return '/login';
       if (!signedIn) return null;
       if (profileState.isLoading) return null;
+      if (profileState.hasError) return onLogin ? '/home' : null;
       final hasProfile = profileState.value != null;
       if (!hasProfile && !onSetup) return '/setup';
       if (hasProfile && (onLogin || onSetup)) return '/home';
       return null;
     },
   );
+  ref.listen(authStateProvider, (_, _) => router.refresh());
+  ref.listen(trackingProfileProvider, (_, _) => router.refresh());
+  ref.onDispose(router.dispose);
+  return router;
 });

@@ -27,6 +27,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
   );
   final _manual = TextEditingController();
   bool _lookingUp = false;
+  bool _smallMeal = false;
   String? _barcode, _error;
   FoodCandidate? _product;
   double _amountG = 0;
@@ -88,6 +89,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
               'meal_type': 'meal',
               'amount_text': '${_amountG.round()}g',
               'energy_kcal': nutrition.energyKcal.round(),
+              'small_meal': _smallMeal,
               'barcode': _barcode,
               'items': [
                 {
@@ -162,12 +164,20 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
               child: Text(_error!),
             ),
           ),
-        if (_product != null)
+        if (_product != null) ...[
           _ProductCard(
             product: _product!,
             amountG: _amountG,
             onAmount: (value) => setState(() => _amountG = value),
           ),
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            title: const Text('소식했어요'),
+            subtitle: const Text('평소보다 부담 없이 적게 먹었다면 체크해요.'),
+            value: _smallMeal,
+            onChanged: (value) => setState(() => _smallMeal = value),
+          ),
+        ],
         if (_product == null && !_lookingUp) ...[
           const SizedBox(height: 14),
           TextField(

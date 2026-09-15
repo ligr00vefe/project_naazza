@@ -9,44 +9,22 @@ class AuthController extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> signIn(String username, String pin) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(
       () => ref
           .read(authRepositoryProvider)
-          .signIn(email: email.trim(), password: password),
+          .signIn(username: username.trim(), pin: pin),
     );
   }
 
-  Future<void> signUp(String email, String password) async {
+  Future<void> signUp(String username, String pin) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(
       () => ref
           .read(authRepositoryProvider)
-          .signUp(email: email.trim(), password: password),
+          .signUp(username: username.trim(), pin: pin),
     );
-  }
-
-  Future<void> resendEmailVerification(String email) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => ref
-          .read(authRepositoryProvider)
-          .resendEmailVerification(email: email.trim()),
-    );
-  }
-
-  Future<bool> refreshEmailVerification(String email, String password) async {
-    state = const AsyncLoading();
-    final result = await AsyncValue.guard(
-      () => ref
-          .read(authRepositoryProvider)
-          .refreshEmailVerification(email: email.trim(), password: password),
-    );
-    state = result.hasError
-        ? AsyncError(result.error!, result.stackTrace ?? StackTrace.current)
-        : const AsyncData(null);
-    return result.value ?? false;
   }
 
   Future<void> signOut() async {

@@ -72,6 +72,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
       'amount_text': record.data['amount_text'],
       'energy_kcal': record.data['energy_kcal'],
       'memo': record.data['memo'],
+      'details': record.data,
     },
     HealthRecordType.condition => {
       'user_id': record.userId,
@@ -108,15 +109,26 @@ class SupabaseRecordsRepository implements RecordsRepository {
         HealthRecordType.visit => _visitFromRow(row),
       };
 
-  HealthRecord _mealFromRow(Map<String, dynamic> row) => HealthRecord(
-    id: row['id'].toString(),
-    userId: row['user_id'] as String,
-    type: HealthRecordType.meal,
-    recordedAt: DateTime.parse(row['eaten_at'] as String),
-    title: row['food_name'] as String,
-    summary: '${row['amount_text'] ?? ''} · ${row['energy_kcal'] ?? 0} kcal',
-    data: Map<String, Object?>.from(row),
-  );
+  HealthRecord _mealFromRow(Map<String, dynamic> row) {
+    final details = Map<String, Object?>.from(
+      row['details'] as Map? ?? const {},
+    );
+    details.addAll({
+      'meal_type': row['meal_type'],
+      'amount_text': row['amount_text'],
+      'energy_kcal': row['energy_kcal'],
+      'memo': row['memo'],
+    });
+    return HealthRecord(
+      id: row['id'].toString(),
+      userId: row['user_id'] as String,
+      type: HealthRecordType.meal,
+      recordedAt: DateTime.parse(row['eaten_at'] as String),
+      title: row['food_name'] as String,
+      summary: '${row['amount_text'] ?? ''} · ${row['energy_kcal'] ?? 0} kcal',
+      data: details,
+    );
+  }
 
   HealthRecord _conditionFromRow(Map<String, dynamic> row) {
     final status = row['response_status'] as String;

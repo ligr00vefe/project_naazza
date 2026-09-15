@@ -216,7 +216,7 @@ class HomePage extends ConsumerWidget {
                 'P4 기록 인사이트',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
-              subtitle: Text(user?.email ?? '인증 사용자'),
+              subtitle: Text(user?.username ?? '사용자'),
             ),
           ),
         ],

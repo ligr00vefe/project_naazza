@@ -24,6 +24,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   String? _photoPath;
   List<FoodCandidate> _foods = [];
   bool _analyzing = false;
+  bool _smallMeal = false;
   String? _error;
 
   Future<void> _pick(ImageSource source) async {
@@ -154,6 +155,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
         'meal_type': 'meal',
         'amount_text': '${_foods.length}개 음식',
         'energy_kcal': total.round(),
+        'small_meal': _smallMeal,
         'photo_path': _photoPath,
         'items': [
           for (final food in _foods)
@@ -279,6 +281,13 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
                 onAmount: () => _editAmount(index),
                 onDelete: () => setState(() => _foods.removeAt(index)),
               ),
+            SwitchListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              title: const Text('소식했어요'),
+              subtitle: const Text('평소보다 부담 없이 적게 먹었다면 체크해요.'),
+              value: _smallMeal,
+              onChanged: (value) => setState(() => _smallMeal = value),
+            ),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(18),

@@ -18,6 +18,7 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
   late final TextEditingController _kcal;
   late final TextEditingController _memo;
   String _mealType = 'meal';
+  bool _smallMeal = false;
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
     );
     _memo = TextEditingController(text: record?.data['memo']?.toString() ?? '');
     _mealType = record?.data['meal_type']?.toString() ?? 'meal';
+    _smallMeal = record?.data['small_meal'] == true;
   }
 
   @override
@@ -56,6 +58,7 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
       'meal_type': _mealType,
       'amount_text': _amount.text.trim(),
       'energy_kcal': kcal,
+      'small_meal': _smallMeal,
       'memo': _memo.text.trim(),
     };
     final record = HealthRecord(
@@ -116,6 +119,14 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
             labelText: '열량 (선택)',
             suffixText: 'kcal',
           ),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('소식했어요'),
+          subtitle: const Text('평소보다 부담 없이 적게 먹었다면 체크해요.'),
+          value: _smallMeal,
+          onChanged: (value) => setState(() => _smallMeal = value),
         ),
         const SizedBox(height: 12),
         TextField(

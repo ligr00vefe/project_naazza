@@ -8,64 +8,53 @@ class SupabaseTrackingProfileRepository implements TrackingProfileRepository {
 
   @override
   Future<TrackingProfile?> load(String userId) async {
-    final conditions = await _client
-        .from('user_conditions')
-        .select('condition_key')
-        .eq('user_id', userId);
-    final metrics = await _client
-        .from('user_tracking_metrics')
-        .select('metric_key, enabled, quick_log_order')
-        .eq('user_id', userId)
-        .order('quick_log_order');
-    final preferences = await _client
-        .from('user_preferences')
-        .select('reminders_enabled, onboarding_completed')
-        .eq('user_id', userId)
-        .maybeSingle();
-    if (preferences == null || preferences['onboarding_completed'] != true) {
-      return null;
-    }
+    _ensureCurrentUser(userId);
+    final response = await _client.rpc('load_tracking_profile');
+    if (response == null) return null;
+    final data = Map<String, dynamic>.from(response as Map);
     return TrackingProfile(
-      conditionKeys: [
-        for (final row in conditions) row['condition_key'] as String,
-      ],
+      conditionKeys: List<String>.from(
+        data['condition_keys'] as List? ?? const [],
+      ),
       metrics: [
-        for (final row in metrics)
+        for (final value in data['metrics'] as List? ?? const [])
           TrackingMetricSelection(
-            metricKey: row['metric_key'] as String,
-            enabled: row['enabled'] as bool,
-            quickLogOrder: row['quick_log_order'] as int,
+            metricKey:
+                Map<String, dynamic>.from(value as Map)['metric_key'] as String,
+            enabled:
+                Map<String, dynamic>.from(value)['enabled'] as bool? ?? true,
+            quickLogOrder:
+                Map<String, dynamic>.from(value)['quick_log_order'] as int? ??
+                0,
           ),
       ],
-      remindersEnabled: preferences['reminders_enabled'] as bool? ?? false,
+      remindersEnabled: data['reminders_enabled'] as bool? ?? false,
     );
   }
 
   @override
   Future<void> save(String userId, TrackingProfile profile) async {
-    await _client.from('user_conditions').delete().eq('user_id', userId);
-    await _client.from('user_tracking_metrics').delete().eq('user_id', userId);
-    if (profile.conditionKeys.isNotEmpty) {
-      await _client.from('user_conditions').insert([
-        for (final key in profile.conditionKeys)
-          {'user_id': userId, 'condition_key': key},
-      ]);
+    _ensureCurrentUser(userId);
+    await _client.rpc(
+      'save_tracking_profile',
+      params: {
+        'p_condition_keys': profile.conditionKeys,
+        'p_metrics': [
+          for (final metric in profile.metrics)
+            {
+              'metric_key': metric.metricKey,
+              'enabled': metric.enabled,
+              'quick_log_order': metric.quickLogOrder,
+            },
+        ],
+        'p_reminders_enabled': profile.remindersEnabled,
+      },
+    );
+  }
+
+  void _ensureCurrentUser(String userId) {
+    if (_client.auth.currentUser?.id != userId) {
+      throw StateError('현재 로그인한 사용자의 설정만 처리할 수 있습니다.');
     }
-    if (profile.metrics.isNotEmpty) {
-      await _client.from('user_tracking_metrics').insert([
-        for (final metric in profile.metrics)
-          {
-            'user_id': userId,
-            'metric_key': metric.metricKey,
-            'enabled': metric.enabled,
-            'quick_log_order': metric.quickLogOrder,
-          },
-      ]);
-    }
-    await _client.from('user_preferences').upsert({
-      'user_id': userId,
-      'reminders_enabled': profile.remindersEnabled,
-      'onboarding_completed': true,
-    });
   }
 }

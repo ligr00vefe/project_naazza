@@ -1,30 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/config/app_config.dart';
-import '../data/auth_repository.dart';
-import '../domain/auth_user.dart';
+import '../domain/auth_failure.dart';
 import 'auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
+
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _email = TextEditingController();
-  final _password = TextEditingController();
+  final _username = TextEditingController();
+  final _pin = TextEditingController();
   bool _isSignUp = false;
-  bool _verificationRequested = false;
-  bool _emailVerified = false;
-  bool _checkingVerification = false;
-  String? _verifiedEmail;
+  bool _obscurePin = true;
 
   @override
   void dispose() {
-    _email.dispose();
-    _password.dispose();
+    _username.dispose();
+    _pin.dispose();
     super.dispose();
   }
 
@@ -32,90 +30,38 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
 
-  Future<void> _sendVerification() async {
-    final email = _email.text.trim();
-    if (!_isValidEmail(email)) {
-      _show('인증 메일을 받을 이메일 주소를 입력해 주세요.');
-      return;
+  bool _validate() {
+    final username = _username.text.trim().toLowerCase();
+    if (!RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(username)) {
+      _show('아이디는 영문 소문자, 숫자, 밑줄로 3~20자 입력해 줘.');
+      return false;
     }
-    if (_password.text.length < 6) {
-      _show('회원가입에 사용할 6자 이상의 비밀번호를 입력해 주세요.');
-      return;
+    if (!RegExp(r'^\d{4}$').hasMatch(_pin.text)) {
+      _show('비밀번호를 확인해 줘.');
+      return false;
     }
-    await ref
-        .read(authControllerProvider.notifier)
-        .signUp(email, _password.text);
-    if (!mounted || _email.text.trim() != email) return;
-    final error = ref.read(authControllerProvider).error;
-    if (error != null) {
-      _show('인증 메일을 보내지 못했어요: $error');
-      return;
-    }
-    setState(() {
-      _verificationRequested = true;
-      _verifiedEmail = null;
-    });
-    _show('$email 로 인증 메일을 보냈어요. 메일의 인증 버튼을 눌러 주세요.');
-  }
-
-  Future<void> _resendVerification() async {
-    await ref
-        .read(authControllerProvider.notifier)
-        .resendEmailVerification(_email.text.trim());
-    if (!mounted) return;
-    final error = ref.read(authControllerProvider).error;
-    _show(error == null ? '인증 메일을 다시 보냈어요.' : '메일 재발송에 실패했어요: $error');
-  }
-
-  Future<void> _checkVerification() async {
-    setState(() => _checkingVerification = true);
-    final verified = await ref
-        .read(authControllerProvider.notifier)
-        .refreshEmailVerification(_email.text, _password.text);
-    if (!mounted) return;
-    setState(() {
-      _checkingVerification = false;
-      _emailVerified = verified;
-      _verifiedEmail = verified ? _email.text.trim() : null;
-    });
-    _show(
-      verified ? '이메일 인증이 완료되었습니다.' : '아직 인증이 확인되지 않았어요. 메일의 인증 버튼을 먼저 눌러 주세요.',
-    );
+    return true;
   }
 
   Future<void> _submit() async {
+    if (!_validate()) return;
+    final controller = ref.read(authControllerProvider.notifier);
     if (_isSignUp) {
-      if (!_emailVerified) {
-        _show(
-          _verificationRequested ? '인증 확인을 먼저 눌러 주세요.' : '먼저 이메일 인증을 진행해 주세요.',
-        );
-        return;
-      }
+      await controller.signUp(_username.text, _pin.text);
+    } else {
+      await controller.signIn(_username.text, _pin.text);
     }
-    await ref
-        .read(authControllerProvider.notifier)
-        .signIn(_email.text, _password.text);
     if (!mounted) return;
     final error = ref.read(authControllerProvider).error;
-    if (error != null) _show('로그인에 실패했어요: $error');
+    if (error != null) {
+      _show(error is AuthFailure ? error.message : '요청을 처리하지 못했어. 다시 시도해 줘.');
+    }
   }
-
-  bool _isValidEmail(String value) =>
-      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final isDemo = !ref.watch(appConfigProvider).hasSupabaseConfiguration;
-    ref.listen<AsyncValue<AuthUser?>>(authStateProvider, (_, next) {
-      if (next.value?.isEmailVerified == true && mounted) {
-        setState(() {
-          _verificationRequested = true;
-          _emailVerified = true;
-          _verifiedEmail = next.value!.email;
-        });
-      }
-    });
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -143,97 +89,51 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isSignUp
-                        ? '건강 기록을 시작하기 전에 이메일을 인증해 주세요.'
-                        : '나의 기록이 내일의 변화를 만들어요',
+                    _isSignUp ? '사용할 아이디와 비밀번호를 정해 줘' : '나의 기록이 내일의 변화를 만들어요',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: AppColors.muted, height: 1.5),
                   ),
                   const SizedBox(height: 32),
                   TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _username,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.none,
                     textInputAction: TextInputAction.next,
-                    onChanged: (value) {
-                      if (_verificationRequested ||
-                          (_emailVerified && value.trim() != _verifiedEmail)) {
-                        setState(() {
-                          _verificationRequested = false;
-                          _emailVerified = false;
-                          _verifiedEmail = null;
-                        });
-                      }
-                    },
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[a-zA-Z0-9_]'),
+                      ),
+                      LengthLimitingTextInputFormatter(20),
+                    ],
                     decoration: const InputDecoration(
-                      labelText: '이메일',
-                      prefixIcon: Icon(Icons.mail_outline_rounded),
+                      labelText: '아이디',
+                      helperText: '영문 소문자, 숫자, 밑줄 3~20자',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
                   ),
-                  if (_isSignUp) ...[
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: authState.isLoading || _emailVerified
-                          ? null
-                          : (_verificationRequested
-                                ? _resendVerification
-                                : _sendVerification),
-                      icon: Icon(
-                        _emailVerified
-                            ? Icons.verified_rounded
-                            : Icons.mark_email_read_outlined,
-                      ),
-                      label: Text(_emailVerified ? '인증 완료' : '이메일 인증'),
-                    ),
-                    if (_verificationRequested && !_emailVerified) ...[
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0F8F4),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '메일함에서 인증 링크를 누른 뒤 확인해 주세요.',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                TextButton(
-                                  onPressed: authState.isLoading
-                                      ? null
-                                      : _checkVerification,
-                                  child: Text(
-                                    _checkingVerification ? '확인 중...' : '인증 확인',
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: authState.isLoading
-                                      ? null
-                                      : _resendVerification,
-                                  child: const Text('메일 재발송'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
                   const SizedBox(height: 14),
                   TextField(
-                    controller: _password,
-                    obscureText: true,
+                    controller: _pin,
+                    obscureText: _obscurePin,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
                     onSubmitted: (_) => _submit(),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '비밀번호',
-                      helperText: '6자 이상',
-                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () =>
+                            setState(() => _obscurePin = !_obscurePin),
+                        icon: Icon(
+                          _obscurePin
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -252,13 +152,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   TextButton(
                     onPressed: authState.isLoading
                         ? null
-                        : () => setState(() {
-                            _isSignUp = !_isSignUp;
-                            _verificationRequested = false;
-                            _emailVerified = false;
-                            _verifiedEmail = null;
-                          }),
-                    child: Text(_isSignUp ? '이미 계정이 있나요? 로그인' : '처음인가요? 회원가입'),
+                        : () => setState(() => _isSignUp = !_isSignUp),
+                    child: Text(_isSignUp ? '이미 계정이 있어? 로그인' : '처음이야? 회원가입'),
                   ),
                   if (isDemo)
                     const Card(
@@ -266,7 +161,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       child: Padding(
                         padding: EdgeInsets.all(14),
                         child: Text(
-                          '현재 데모 모드입니다. 실제 이메일 인증은 Supabase 설정 후 동작합니다.',
+                          '현재 데모 모드야. 아무 아이디와 비밀번호로 체험할 수 있어.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: AppColors.primary,

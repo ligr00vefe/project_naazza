@@ -1,10 +1,15 @@
 class AuthUser {
   const AuthUser({
     required this.id,
-    required this.email,
-    this.isEmailVerified = true,
+    required this.username,
+    this.email,
+    this.role = 'member',
   });
+
   final String id;
-  final String email;
-  final bool isEmailVerified;
+  final String username;
+  final String? email;
+  final String role;
+
+  bool get isAdmin => role == 'admin';
 }

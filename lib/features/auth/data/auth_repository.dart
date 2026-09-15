@@ -3,15 +3,9 @@ import '../domain/auth_user.dart';
 
 abstract interface class AuthRepository {
   AuthUser? get currentUser;
-  bool get isEmailVerified;
   Stream<AuthUser?> get authStateChanges;
-  Future<void> signIn({required String email, required String password});
-  Future<void> signUp({required String email, required String password});
-  Future<void> resendEmailVerification({required String email});
-  Future<bool> refreshEmailVerification({
-    required String email,
-    required String password,
-  });
+  Future<void> signIn({required String username, required String pin});
+  Future<void> signUp({required String username, required String pin});
   Future<void> signOut();
 }
 
