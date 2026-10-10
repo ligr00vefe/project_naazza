@@ -1,13 +1,16 @@
+import 'food_portion_dialog.dart';
+import 'food_search_dialog.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../core/config/app_config.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../records/domain/health_record.dart';
 import '../../records/presentation/records_controller.dart';
+import '../../records/presentation/meal_category_selector.dart';
 import '../data/meal_analysis_repository.dart';
 import '../domain/meal_analysis.dart';
 
@@ -25,6 +28,8 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   List<FoodCandidate> _foods = [];
   bool _analyzing = false;
   bool _smallMeal = false;
+  String _mealType = 'meal';
+  bool _saved = false;
   String? _error;
 
   Future<void> _pick(ImageSource source) async {
@@ -36,6 +41,9 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
         imageQuality: 82,
       );
       if (file == null) return;
+      await ref.read(mealAnalysisRepositoryProvider).discardPhoto(_photoPath);
+      _photoPath = null;
+      _foods = [];
       _imageBytes = await file.readAsBytes();
       _filename = file.name;
       if (mounted) setState(() {});
@@ -45,8 +53,8 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
     }
   }
 
-  Future<void> _analyze({bool demo = false}) async {
-    final bytes = demo ? Uint8List.fromList([0]) : _imageBytes;
+  Future<void> _analyze() async {
+    final bytes = _imageBytes;
     if (bytes == null) return;
     setState(() {
       _analyzing = true;
@@ -74,67 +82,88 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   }
 
   Future<void> _searchAndAdd() async {
-    final controller = TextEditingController();
-    final query = await showDialog<String>(
+    final request = await showDialog<FoodSearchRequest>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('음식 직접 검색'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '음식 이름'),
-        ),
-        actions: [
-          TextButton(onPressed: () => context.pop(), child: const Text('취소')),
-          FilledButton(
-            onPressed: () => context.pop(controller.text.trim()),
-            child: const Text('검색'),
-          ),
-        ],
-      ),
+      builder: (_) => const FoodSearchDialog(),
     );
-    controller.dispose();
-    if (query == null || query.isEmpty) {
+    if (request == null || !mounted) return;
+    if (!request.search) {
+      setState(() {
+        _error = null;
+        _foods.add(
+          FoodCandidate(
+            name: request.name,
+            normalizedName: request.name,
+            confidence: 1,
+            tags: const ['열량미기록'],
+            nutrition: const NutritionFacts(
+              baseAmountG: 100,
+              energyKcal: 0,
+              carbohydrateG: 0,
+              proteinG: 0,
+              fatG: 0,
+              sodiumMg: 0,
+            ),
+          ),
+        );
+      });
       return;
     }
+    setState(() {
+      _analyzing = true;
+      _error = null;
+    });
     try {
       final results = await ref
           .read(mealAnalysisRepositoryProvider)
-          .searchNutrition(query);
-      if (mounted && results.isNotEmpty) {
-        setState(() => _foods.add(results.first));
+          .searchNutrition(request.name);
+      if (!mounted) return;
+      if (results.isEmpty) {
+        setState(() => _error = '검색 결과가 없어요. 이름만 추가하거나 직접 입력해 주세요.');
+        return;
       }
+      setState(() => _analyzing = false);
+      final food = await showModalBottomSheet<FoodCandidate>(
+        context: context,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (context) => ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(20),
+          children: [
+            const Text('추정 영양정보를 확인하고 골라 주세요.'),
+            const SizedBox(height: 12),
+            for (final food in results)
+              ListTile(
+                title: Text(food.name),
+                subtitle: Text(
+                  '${food.amountG.round()}g · ${food.nutrition.forAmount(food.amountG).energyKcal.round()} kcal',
+                ),
+                onTap: () => Navigator.pop(context, food),
+              ),
+          ],
+        ),
+      );
+      if (mounted && food != null) setState(() => _foods.add(food));
     } catch (error) {
-      if (mounted) setState(() => _error = '검색하지 못했어요: $error');
+      if (mounted) {
+        setState(
+          () => _error = error is StateError
+              ? error.message.toString()
+              : '검색 서버에 연결하지 못했어요. 이름만 추가하거나 직접 입력해 주세요.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _analyzing = false);
     }
   }
 
   Future<void> _editAmount(int index) async {
-    final controller = TextEditingController(
-      text: _foods[index].amountG.toStringAsFixed(0),
-    );
-    final value = await showDialog<double>(
+    final food = await showDialog<FoodCandidate>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${_foods[index].name} 섭취량'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'g'),
-        ),
-        actions: [
-          TextButton(onPressed: () => context.pop(), child: const Text('취소')),
-          FilledButton(
-            onPressed: () => context.pop(double.tryParse(controller.text)),
-            child: const Text('적용'),
-          ),
-        ],
-      ),
+      builder: (_) => FoodPortionDialog(food: _foods[index]),
     );
-    controller.dispose();
-    if (value != null && value > 0) {
-      setState(() => _foods[index] = _foods[index].copyWith(amountG: value));
-    }
+    if (food != null && mounted) setState(() => _foods[index] = food);
   }
 
   Future<void> _save() async {
@@ -152,30 +181,33 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       title: _foods.map((food) => food.name).join(', '),
       summary: '${_foods.length}개 음식 · ${total.round()} kcal',
       data: {
-        'meal_type': 'meal',
+        'meal_type': _mealType,
         'amount_text': '${_foods.length}개 음식',
-        'energy_kcal': total.round(),
+        'energy_kcal': total,
         'small_meal': _smallMeal,
         'photo_path': _photoPath,
-        'items': [
-          for (final food in _foods)
-            {
-              'name': food.name,
-              'normalized_name': food.normalizedName,
-              'amount_g': food.amountG,
-              'tags': food.tags,
-              'confidence': food.confidence,
-            },
-        ],
+        'items': [for (final food in _foods) food.toRecordItem()],
       },
     );
     await ref.read(recordsProvider.notifier).create(record);
-    if (mounted && !ref.read(recordsProvider).hasError) context.go('/timeline');
+    if (mounted && !ref.read(recordsProvider).hasError) {
+      _saved = true;
+      context.go('/timeline');
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!_saved && _photoPath != null) {
+      unawaited(
+        ref.read(mealAnalysisRepositoryProvider).discardPhoto(_photoPath),
+      );
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDemo = !ref.watch(appConfigProvider).hasSupabaseConfiguration;
     final totalKcal = _foods.fold<double>(
       0,
       (sum, food) => sum + food.nutrition.forAmount(food.amountG).energyKcal,
@@ -190,7 +222,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const Text(
-            'AI 결과는 참고용이며 저장 전에 반드시 확인해 주세요.',
+            '음식이나 제품 포장 사진을 촬영해 주세요. 제품명과 영양표가 잘 보이면 인식에 도움이 돼요. AI 결과는 저장 전에 확인해 주세요.',
             style: TextStyle(color: AppColors.muted),
           ),
           const SizedBox(height: 18),
@@ -219,16 +251,12 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
                 ),
               ],
             ),
-          if (isDemo && _foods.isEmpty) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _analyzing ? null : () => _analyze(demo: true),
-              icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('데모 사진 분석 실행'),
-            ),
-          ],
           if (_foods.isEmpty) ...[
             const SizedBox(height: 12),
+            TextButton(
+              onPressed: _analyzing ? null : _searchAndAdd,
+              child: const Text('음식 검색 또는 이름만 추가'),
+            ),
             OutlinedButton.icon(
               onPressed: () => context.push('/record/barcode'),
               icon: const Icon(Icons.qr_code_scanner_rounded),
@@ -278,9 +306,15 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
             for (var index = 0; index < _foods.length; index++)
               _FoodCard(
                 food: _foods[index],
+                onChanged: (food) => setState(() => _foods[index] = food),
                 onAmount: () => _editAmount(index),
                 onDelete: () => setState(() => _foods.removeAt(index)),
               ),
+            MealCategorySelector(
+              value: _mealType,
+              onChanged: (value) => setState(() => _mealType = value),
+            ),
+            const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 4),
               title: const Text('소식했어요'),
@@ -288,6 +322,8 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
               value: _smallMeal,
               onChanged: (value) => setState(() => _smallMeal = value),
             ),
+            if (_foods.any((food) => food.tags.contains('열량미기록')))
+              Text('열량 미기록 음식이 있어요. 총합에는 알려진 열량만 포함돼요.'),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(18),
@@ -362,73 +398,68 @@ class _FoodCard extends StatelessWidget {
     required this.food,
     required this.onAmount,
     required this.onDelete,
+    required this.onChanged,
   });
   final FoodCandidate food;
-  final VoidCallback onAmount;
-  final VoidCallback onDelete;
+  final VoidCallback onAmount, onDelete;
+  final ValueChanged<FoodCandidate> onChanged;
   @override
-  Widget build(BuildContext context) {
-    final nutrition = food.nutrition.forAmount(food.amountG);
-    final needsReview = food.confidence < 0.85;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: needsReview
-                    ? const Color(0xFFFFF2D5)
-                    : const Color(0xFFE6F6EE),
-                child: Icon(
-                  needsReview
-                      ? Icons.priority_high_rounded
-                      : Icons.check_rounded,
-                  color: needsReview ? Colors.orange : AppColors.primary,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        food.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        food.tags.contains('열량미기록')
+                            ? '열량 미기록'
+                            : '${food.nutrition.forAmount(food.amountG).energyKcal.round()} kcal · 인식 ${(food.confidence * 100).round()}%',
+                        style: const TextStyle(color: AppColors.muted),
+                      ),
+                      if (food.tags.isNotEmpty)
+                        Wrap(
+                          spacing: 6,
+                          children: [
+                            for (final tag in food.tags.take(3))
+                              Text(
+                                '#$tag',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      food.name,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      '${(food.confidence * 100).round()}% · ${nutrition.energyKcal.round()} kcal',
-                      style: const TextStyle(color: AppColors.muted),
-                    ),
-                    Wrap(
-                      spacing: 4,
-                      children: [
-                        for (final tag in food.tags.take(3))
-                          Text(
-                            '#$tag',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
+                TextButton(
+                  onPressed: onAmount,
+                  child: Text('${food.amountG}g'),
                 ),
-              ),
-              TextButton(
-                onPressed: onAmount,
-                child: Text('${food.amountG.round()}g'),
-              ),
-              IconButton(
-                onPressed: onDelete,
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            if (!food.tags.contains('열량미기록'))
+              FoodPortionControl(food: food, onChanged: onChanged),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }

@@ -67,12 +67,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(await trackingRepository.load('demo-user'), isNotNull);
     expect(find.text('빠른 기록'), findsOneWidget);
+    expect(find.text('내 음식'), findsNothing);
     await tester.scrollUntilVisible(
-      find.text('P4 기록 인사이트'),
+      find.text('최근 기록'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('P4 기록 인사이트'), findsOneWidget);
+    expect(find.text('최근 기록'), findsOneWidget);
     expect(find.text('복통'), findsWidgets);
 
     await tester.drag(find.byType(Scrollable).first, const Offset(0, 900));

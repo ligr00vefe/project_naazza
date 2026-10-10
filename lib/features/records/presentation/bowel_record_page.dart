@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/health_record.dart';
+import '../domain/bowel_form.dart';
+import 'bowel_form_selector.dart';
 import 'records_controller.dart';
 
 class BowelRecordPage extends ConsumerStatefulWidget {
@@ -46,7 +48,7 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
       type: HealthRecordType.bowel,
       recordedAt: widget.record?.recordedAt ?? DateTime.now(),
       title: '배변 기록',
-      summary: 'Bristol $_bristol · $_amount',
+      summary: '${BowelForm.recordLabel(_bristol)} · $_amount',
       data: {
         'bristol_type': _bristol,
         'urgency': _urgency,
@@ -67,37 +69,11 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
-          '오늘의 배변 상태를 선택해 주세요',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
+        Text('오늘의 배변은?', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 18),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '배변 형태 (브리스톨 척도)',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (var type = 1; type <= 7; type++)
-                      ChoiceChip(
-                        label: Text('$type'),
-                        selected: _bristol == type,
-                        onSelected: (_) => setState(() => _bristol = type),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        BowelFormSelector(
+          value: _bristol,
+          onChanged: (value) => setState(() => _bristol = value),
         ),
         const SizedBox(height: 14),
         _ChoiceSection(
@@ -124,7 +100,7 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
         TextField(
           controller: _memo,
           maxLines: 3,
-          decoration: const InputDecoration(labelText: '메모 (선택)'),
+          decoration: const InputDecoration(labelText: '메모'),
         ),
       ],
     ),
@@ -160,6 +136,7 @@ class _ChoiceSection extends StatelessWidget {
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
+            runSpacing: 10,
             children: [
               for (final value in values)
                 ChoiceChip(

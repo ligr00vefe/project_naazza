@@ -1,3 +1,4 @@
+import 'food_portion_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../records/domain/health_record.dart';
 import '../../records/presentation/records_controller.dart';
+import '../../records/presentation/meal_category_selector.dart';
 import '../data/meal_analysis_repository.dart';
 import '../domain/meal_analysis.dart';
 
@@ -28,9 +30,9 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
   final _manual = TextEditingController();
   bool _lookingUp = false;
   bool _smallMeal = false;
+  String _mealType = 'meal';
   String? _barcode, _error;
   FoodCandidate? _product;
-  double _amountG = 0;
   @override
   void dispose() {
     _controller.dispose();
@@ -59,11 +61,18 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
       if (!mounted) return;
       setState(() {
         _product = product;
-        _amountG = product?.amountG ?? 0;
-        if (product == null) _error = '제품 정보를 찾지 못했어요. 직접 검색해 주세요.';
+        if (product == null) {
+          _error = '등록된 제품 정보가 없어요. 제품 사진 분석이나 직접 입력을 이용해 주세요.';
+        }
       });
     } catch (error) {
-      if (mounted) setState(() => _error = '제품 조회에 실패했어요. ($error)');
+      if (mounted) {
+        setState(
+          () => _error = error is StateError
+              ? error.message.toString()
+              : '제품 조회에 실패했어요. 잠시 후 다시 시도해 주세요.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _lookingUp = false);
     }
@@ -71,9 +80,9 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
 
   Future<void> _save() async {
     final product = _product;
-    if (product == null || _amountG <= 0) return;
+    if (product == null || product.amountG <= 0) return;
     final user = ref.read(authRepositoryProvider).currentUser!;
-    final nutrition = product.nutrition.forAmount(_amountG);
+    final nutrition = product.nutrition.forAmount(product.amountG);
     await ref
         .read(recordsProvider.notifier)
         .create(
@@ -84,22 +93,14 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
             recordedAt: DateTime.now(),
             title: product.name,
             summary:
-                '${_amountG.round()}g · ${nutrition.energyKcal.round()} kcal',
+                '${product.amountG.round()}g · ${nutrition.energyKcal.round()} kcal',
             data: {
-              'meal_type': 'meal',
-              'amount_text': '${_amountG.round()}g',
-              'energy_kcal': nutrition.energyKcal.round(),
+              'meal_type': _mealType,
+              'amount_text': '${product.amountG.round()}g',
+              'energy_kcal': nutrition.energyKcal,
               'small_meal': _smallMeal,
               'barcode': _barcode,
-              'items': [
-                {
-                  'name': product.name,
-                  'normalized_name': product.normalizedName,
-                  'amount_g': _amountG,
-                  'tags': product.tags,
-                  'source_type': 'barcode',
-                },
-              ],
+              'items': [product.toRecordItem(sourceType: 'barcode')],
             },
           ),
         );
@@ -167,9 +168,13 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
         if (_product != null) ...[
           _ProductCard(
             product: _product!,
-            amountG: _amountG,
-            onAmount: (value) => setState(() => _amountG = value),
+            onChanged: (value) => setState(() => _product = value),
           ),
+          MealCategorySelector(
+            value: _mealType,
+            onChanged: (value) => setState(() => _mealType = value),
+          ),
+          const SizedBox(height: 12),
           SwitchListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),
             title: const Text('소식했어요'),
@@ -195,6 +200,13 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
         const SizedBox(height: 12),
         if (_error != null)
           OutlinedButton(onPressed: _retry, child: const Text('다시 스캔')),
+        OutlinedButton.icon(
+          onPressed: _lookingUp
+              ? null
+              : () => context.push('/record/meal-photo'),
+          icon: const Icon(Icons.photo_camera_rounded),
+          label: const Text('제품 사진으로 AI 분석하기'),
+        ),
         TextButton(
           onPressed: () => context.push('/record/meal'),
           child: const Text('제품을 직접 입력하기'),
@@ -214,54 +226,36 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({
-    required this.product,
-    required this.amountG,
-    required this.onAmount,
-  });
+  const _ProductCard({required this.product, required this.onChanged});
   final FoodCandidate product;
-  final double amountG;
-  final ValueChanged<double> onAmount;
+  final ValueChanged<FoodCandidate> onChanged;
   @override
-  Widget build(BuildContext context) {
-    final nutrition = product.nutrition.forAmount(amountG);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.verified_rounded, color: AppColors.primary),
-            const SizedBox(height: 8),
-            Text(product.name, style: Theme.of(context).textTheme.titleLarge),
-            Text(
-              product.tags.map((e) => '#$e').join(' '),
-              style: const TextStyle(color: AppColors.primary),
-            ),
-            const SizedBox(height: 18),
-            Text('섭취량 ${amountG.round()}g'),
-            Slider(
-              value: amountG.clamp(1, 500),
-              min: 1,
-              max: 500,
-              divisions: 499,
-              onChanged: onAmount,
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('예상 열량'),
-                Text(
-                  '${nutrition.energyKcal.round()} kcal',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(product.name, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Text(
+            '섭취량 ${product.amountG}g · ${product.nutrition.forAmount(product.amountG).energyKcal.round()} kcal',
+          ),
+          TextButton(
+            onPressed: () async {
+              final food = await showDialog<FoodCandidate>(
+                context: context,
+                builder: (_) => FoodPortionDialog(food: product),
+              );
+              if (food != null) onChanged(food);
+            },
+            child: const Text('섭취량 수정'),
+          ),
+          FoodPortionControl(food: product, onChanged: onChanged),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _ScannerError extends StatelessWidget {

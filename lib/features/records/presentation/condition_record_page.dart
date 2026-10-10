@@ -1,3 +1,4 @@
+import '../../../core/widgets/word_wrap_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -79,31 +80,26 @@ class _ConditionRecordPageState extends ConsumerState<ConditionRecordPage> {
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
+        WordWrapText(
           '지금 내 상태는 어떤가요?',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 18),
-        SegmentedButton<ResponseStatus>(
-          segments: const [
-            ButtonSegment(
-              value: ResponseStatus.normal,
-              icon: Icon(Icons.sentiment_satisfied_rounded),
-              label: Text('이상 없음'),
-            ),
-            ButtonSegment(
-              value: ResponseStatus.symptom,
-              icon: Icon(Icons.health_and_safety_outlined),
-              label: Text('증상 기록'),
-            ),
-            ButtonSegment(
-              value: ResponseStatus.skipped,
-              icon: Icon(Icons.more_horiz_rounded),
-              label: Text('건너뛰기'),
-            ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 10,
+          children: [
+            for (final status in ResponseStatus.values)
+              ChoiceChip(
+                label: Text(switch (status) {
+                  ResponseStatus.normal => '이상 없음',
+                  ResponseStatus.symptom => '증상 기록',
+                  ResponseStatus.skipped => '건너뛰기',
+                }),
+                selected: _status == status,
+                onSelected: (_) => setState(() => _status = status),
+              ),
           ],
-          selected: {_status},
-          onSelectionChanged: (value) => setState(() => _status = value.first),
         ),
         if (_status == ResponseStatus.symptom) ...[
           const SizedBox(height: 22),
@@ -112,6 +108,7 @@ class _ConditionRecordPageState extends ConsumerState<ConditionRecordPage> {
               padding: const EdgeInsets.all(18),
               child: Wrap(
                 spacing: 8,
+                runSpacing: 10,
                 children: [
                   for (final symptom in options)
                     FilterChip(
@@ -132,7 +129,7 @@ class _ConditionRecordPageState extends ConsumerState<ConditionRecordPage> {
         TextField(
           controller: _memo,
           maxLines: 3,
-          decoration: const InputDecoration(labelText: '메모 (선택)'),
+          decoration: const InputDecoration(labelText: '메모'),
         ),
       ],
     ),

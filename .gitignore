@@ -44,6 +44,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Local Flutter compile-time configuration
-config/dev.json
-config/dev.example.json
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+# Generated public-only Flutter configuration
+config/public.generated.json
+/artifacts/
+/.tmp/

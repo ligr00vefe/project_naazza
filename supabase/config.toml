@@ -392,3 +392,18 @@ entrypoint = "./functions/username-signup/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/username-login/index.ts"
+
+[functions.product-barcode]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/product-barcode/index.ts"
+
+[functions.analyze-meal-image]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/analyze-meal-image/index.ts"
+
+[functions.nutrition-search]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/nutrition-search/index.ts"

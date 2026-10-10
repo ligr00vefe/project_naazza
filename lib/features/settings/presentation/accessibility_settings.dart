@@ -1,3 +1,4 @@
+import '../../../core/widgets/main_navigation_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -11,6 +12,7 @@ class AccessibilitySettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final reduceMotion = ref.watch(reduceMotionProvider);
     return Scaffold(
+      bottomNavigationBar: const MainNavigationBar(selectedIndex: 4),
       appBar: AppBar(title: const Text('설정 및 접근성')),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -19,23 +21,27 @@ class AccessibilitySettingsPage extends ConsumerWidget {
             child: SwitchListTile(
               secondary: const Icon(Icons.motion_photos_off_outlined),
               title: const Text('모션 줄이기'),
-              subtitle: const Text('캐릭터 움직임과 화면 전환 효과를 최소화해요.'),
+              subtitle: const Text('캐릭터 움직임을 줄여요.'),
               value: reduceMotion,
               onChanged: (value) =>
                   ref.read(reduceMotionProvider.notifier).state = value,
             ),
           ),
+          const SizedBox(height: 24),
+          Text('기본 적용 안내', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
           const Card(
             child: ListTile(
               leading: Icon(Icons.text_fields_rounded),
-              title: Text('글자 크기'),
+              title: Text('글자 크기 · 기기 설정 적용'),
               subtitle: Text('기기의 글자 크기 설정을 그대로 적용합니다.'),
             ),
           ),
+          const SizedBox(height: 16),
           const Card(
             child: ListTile(
               leading: Icon(Icons.contrast_rounded),
-              title: Text('색상 외 정보 제공'),
+              title: Text('색상 외 정보 · 기본 적용'),
               subtitle: Text('선택과 상태를 색상뿐 아니라 아이콘과 텍스트로 함께 표시합니다.'),
             ),
           ),

@@ -63,6 +63,9 @@ class DemoMealAnalysisRepository implements MealAnalysisRepository {
   }
 
   @override
+  Future<void> discardPhoto(String? photoPath) async {}
+
+  @override
   Future<List<FoodCandidate>> searchNutrition(String query) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return [

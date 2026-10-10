@@ -1,10 +1,11 @@
+import '../../features/records/presentation/alcohol_record_page.dart';
+import '../../features/records/presentation/record_detail_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/export/presentation/export_page.dart';
-import '../../features/favorites/presentation/favorite_meals_page.dart';
 import '../../features/insights/presentation/insights_page.dart';
 import '../../features/meal_analysis/presentation/meal_capture_page.dart';
 import '../../features/meal_analysis/presentation/barcode_scanner_page.dart';
@@ -15,6 +16,8 @@ import '../../features/records/presentation/meal_record_page.dart';
 import '../../features/records/presentation/record_hub_page.dart';
 import '../../features/records/presentation/records_calendar_page.dart';
 import '../../features/records/presentation/timeline_page.dart';
+import '../../features/records/presentation/meal_group_page.dart';
+import '../../features/records/domain/meal_group.dart';
 import '../../features/tracking_profile/presentation/tracking_profile_controller.dart';
 import '../../features/tracking_profile/presentation/tracking_profile_page.dart';
 import '../../features/settings/presentation/accessibility_settings.dart';
@@ -33,13 +36,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const TrackingProfilePage(editing: true),
       ),
       GoRoute(path: '/home', builder: (_, _) => const HomePage()),
-      GoRoute(path: '/favorites', builder: (_, _) => const FavoriteMealsPage()),
       GoRoute(path: '/export', builder: (_, _) => const ExportPage()),
       GoRoute(
         path: '/settings',
         builder: (_, _) => const AccessibilitySettingsPage(),
       ),
       GoRoute(path: '/record', builder: (_, _) => const RecordHubPage()),
+      GoRoute(
+        path: '/record/alcohol',
+        builder: (_, state) =>
+            AlcoholRecordPage(record: state.extra as HealthRecord?),
+      ),
       GoRoute(
         path: '/record/meal-photo',
         builder: (_, _) => const MealCapturePage(),
@@ -73,7 +80,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) =>
             VisitPreparationPage(visit: state.extra! as HealthRecord),
       ),
+      GoRoute(
+        path: '/records/detail',
+        builder: (_, state) =>
+            RecordDetailPage(record: state.extra! as HealthRecord),
+      ),
       GoRoute(path: '/timeline', builder: (_, _) => const TimelinePage()),
+      GoRoute(
+        path: '/timeline/meal',
+        builder: (_, state) => MealGroupPage(group: state.extra! as MealGroup),
+      ),
       GoRoute(path: '/insights', builder: (_, _) => const InsightsPage()),
       GoRoute(
         path: '/calendar',

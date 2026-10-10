@@ -104,7 +104,9 @@ class InsightSummary {
     }
     if (bristol.length >= 3) {
       final avg = bristol.reduce((a, b) => a + b) / bristol.length;
-      observations.add('배변 형태의 평균은 Bristol ${avg.toStringAsFixed(1)}이에요.');
+      observations.add(
+        '배변 형태의 평균은 7단계 중 ${avg.toStringAsFixed(1)}이에요. 숫자가 클수록 묽은 편이에요.',
+      );
     }
     return InsightSummary(
       days: days,
@@ -135,5 +137,6 @@ String _mealTypeLabel(String value) => switch (value) {
   'breakfast' => '아침',
   'lunch' => '점심',
   'dinner' => '저녁',
+  'snack' => '간식',
   _ => '기타 식사',
 };

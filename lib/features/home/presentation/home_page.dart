@@ -1,8 +1,12 @@
+import '../../../core/widgets/word_wrap_text.dart';
+import '../../records/domain/meal_group.dart';
+import '../../records/domain/health_record.dart';
+import '../../../core/widgets/main_navigation_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../auth/data/auth_repository.dart';
+
 import '../../auth/presentation/auth_controller.dart';
 import '../../records/presentation/records_controller.dart';
 import '../../tracking_profile/domain/tracking_catalog.dart';
@@ -13,12 +17,25 @@ class HomePage extends ConsumerWidget {
   const HomePage({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authRepositoryProvider).currentUser;
     final profile = ref.watch(trackingProfileProvider).value;
     final quickMetrics =
         profile?.metrics.where((item) => item.enabled).take(4) ?? [];
-    final recentRecords =
-        ref.watch(recordsProvider).value?.take(3).toList() ?? [];
+    final allRecords = ref.watch(recordsProvider).value ?? [];
+    final recentEntries =
+        <Object>[
+          ...groupMeals(allRecords),
+          ...allRecords.where((record) => record.type != HealthRecordType.meal),
+        ]..sort((a, b) {
+          final date = DateUtils.dateOnly(
+            _recentTime(b),
+          ).compareTo(DateUtils.dateOnly(_recentTime(a)));
+          if (date != 0) return date;
+          if (a is MealGroup && b is MealGroup) return compareMealGroups(a, b);
+          if (a is MealGroup) return -1;
+          if (b is MealGroup) return 1;
+          return _recentTime(a).compareTo(_recentTime(b));
+        });
+    final recentRecords = recentEntries.take(3).toList();
     final visits =
         ref
             .watch(recordsProvider)
@@ -78,8 +95,8 @@ class HomePage extends ConsumerWidget {
               children: [
                 const Text('오늘도 기록해볼까요? 🌱'),
                 const SizedBox(height: 10),
-                Text(
-                  '당신의 작은 기록이\n내일의 변화를 만들어요',
+                WordWrapText(
+                  '당신의 작은 기록이 내일의 변화를 만들어요',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 18),
@@ -95,24 +112,10 @@ class HomePage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.push('/favorites'),
-                  icon: const Icon(Icons.favorite_outline_rounded),
-                  label: const Text('내 음식'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.push('/export'),
-                  icon: const Icon(Icons.file_download_outlined),
-                  label: const Text('내보내기'),
-                ),
-              ),
-            ],
+          OutlinedButton.icon(
+            onPressed: () => context.push('/export'),
+            icon: const Icon(Icons.file_download_outlined),
+            label: const Text('내보내기'),
           ),
           const SizedBox(height: 22),
           Text('빠른 기록', style: Theme.of(context).textTheme.titleLarge),
@@ -192,8 +195,19 @@ class HomePage extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Card(
                   child: ListTile(
-                    title: Text(record.title),
-                    subtitle: Text(record.summary),
+                    title: Text(
+                      record is MealGroup
+                          ? '${record.category.label} · ${compactMealNames(record)}'
+                          : (record as HealthRecord).title,
+                    ),
+                    subtitle: Text(
+                      record is MealGroup
+                          ? '총 ${record.calories.round()} kcal'
+                          : (record as HealthRecord).summary,
+                    ),
+                    onTap: () => record is MealGroup
+                        ? context.push('/timeline/meal', extra: record)
+                        : context.push('/records/detail', extra: record),
                   ),
                 ),
               ),
@@ -202,50 +216,9 @@ class HomePage extends ConsumerWidget {
             _VisitCard(record: upcomingVisit),
             const SizedBox(height: 22),
           ],
-          Card(
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(18),
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.lime,
-                child: Icon(
-                  Icons.verified_user_outlined,
-                  color: AppColors.primary,
-                ),
-              ),
-              title: const Text(
-                'P4 기록 인사이트',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(user?.username ?? '사용자'),
-            ),
-          ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          if (index == 1) context.push('/calendar');
-          if (index == 2) context.push('/record');
-          if (index == 3) context.push('/insights');
-          if (index == 4) context.push('/settings');
-        },
-        destinations: [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: '홈'),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_rounded),
-            label: '캘린더',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_rounded),
-            label: '기록하기',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_rounded),
-            label: '인사이트',
-          ),
-          NavigationDestination(icon: Icon(Icons.menu_rounded), label: '더보기'),
-        ],
-      ),
+      bottomNavigationBar: const MainNavigationBar(selectedIndex: 0),
     );
   }
 }
@@ -314,3 +287,7 @@ class _QuickCard extends StatelessWidget {
     ),
   );
 }
+
+DateTime _recentTime(Object record) => record is MealGroup
+    ? record.latest
+    : (record as HealthRecord).recordedAt.toLocal();

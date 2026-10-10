@@ -1,5 +1,7 @@
+import '../domain/alcohol_record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/health_record.dart';
+import '../domain/bowel_form.dart';
 import 'records_repository.dart';
 
 class SupabaseRecordsRepository implements RecordsRepository {
@@ -13,12 +15,14 @@ class SupabaseRecordsRepository implements RecordsRepository {
       _client.from('condition_logs').select().eq('user_id', userId),
       _client.from('bowel_logs').select().eq('user_id', userId),
       _client.from('visit_events').select().eq('user_id', userId),
+      _client.from('alcohol_logs').select().eq('user_id', userId),
     ]);
     final records = <HealthRecord>[
       for (final row in responses[0]) _mealFromRow(row),
       for (final row in responses[1]) _conditionFromRow(row),
       for (final row in responses[2]) _bowelFromRow(row),
       for (final row in responses[3]) _visitFromRow(row),
+      for (final row in responses[4]) _alcoholFromRow(row),
     ]..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return records;
   }
@@ -54,6 +58,18 @@ class SupabaseRecordsRepository implements RecordsRepository {
         .delete()
         .eq('id', record.id)
         .eq('user_id', userId);
+
+    if (record.type == HealthRecordType.meal) {
+      final photoPath = record.data['photo_path']?.toString();
+      if (photoPath != null && photoPath.startsWith('$userId/')) {
+        try {
+          await _client.storage.from('meals').remove([photoPath]);
+        } on StorageException {
+          // The database record is already deleted. A failed best-effort photo
+          // cleanup must not restore a record the user intentionally removed.
+        }
+      }
+    }
   }
 
   String _table(HealthRecordType type) => switch (type) {
@@ -61,6 +77,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
     HealthRecordType.condition => 'condition_logs',
     HealthRecordType.bowel => 'bowel_logs',
     HealthRecordType.visit => 'visit_events',
+    HealthRecordType.alcohol => 'alcohol_logs',
   };
 
   Map<String, Object?> _toRow(HealthRecord record) => switch (record.type) {
@@ -90,6 +107,17 @@ class SupabaseRecordsRepository implements RecordsRepository {
       'amount': record.data['amount'],
       'memo': record.data['memo'],
     },
+    HealthRecordType.alcohol => {
+      'user_id': record.userId,
+      'recorded_at': record.recordedAt.toIso8601String(),
+      'drink_type': record.data['drink_type'],
+      'servings': record.data['servings'],
+      'glass_label': record.data['glass_label'],
+      'glass_ml': record.data['glass_ml'],
+      'total_ml': record.data['total_ml'],
+      'details': {'items': record.data['items'] ?? []},
+      'memo': record.data['memo'],
+    },
     HealthRecordType.visit => {
       'user_id': record.userId,
       'visit_at': record.recordedAt.toIso8601String(),
@@ -107,6 +135,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
         HealthRecordType.condition => _conditionFromRow(row),
         HealthRecordType.bowel => _bowelFromRow(row),
         HealthRecordType.visit => _visitFromRow(row),
+        HealthRecordType.alcohol => _alcoholFromRow(row),
       };
 
   HealthRecord _mealFromRow(Map<String, dynamic> row) {
@@ -154,7 +183,8 @@ class SupabaseRecordsRepository implements RecordsRepository {
     type: HealthRecordType.bowel,
     recordedAt: DateTime.parse(row['recorded_at'] as String),
     title: '배변 기록',
-    summary: 'Bristol ${row['bristol_type']} · ${row['amount'] ?? '보통'}',
+    summary:
+        '${BowelForm.recordLabel(row['bristol_type'])} · ${row['amount'] ?? '보통'}',
     data: Map<String, Object?>.from(row),
   );
 
@@ -182,4 +212,21 @@ class SupabaseRecordsRepository implements RecordsRepository {
       data: details,
     );
   }
+
+  HealthRecord _alcoholFromRow(Map<String, dynamic> row) => HealthRecord(
+    id: row['id'].toString(),
+    userId: row['user_id'].toString(),
+    type: HealthRecordType.alcohol,
+    recordedAt: DateTime.parse(row['recorded_at'].toString()),
+    title: row['drink_type'].toString(),
+    summary:
+        row['details'] is Map &&
+            ((row['details'] as Map)['items'] as List? ?? []).isNotEmpty
+        ? '${((row['details'] as Map)['items'] as List).length}개 항목 · 총 ${row['total_ml']} cc'
+        : '${row['servings']}${containerUnit(row['glass_label'].toString())} · ${row['total_ml']} cc',
+    data: {
+      ...Map<String, Object?>.from(row),
+      ...Map<String, Object?>.from(row['details'] as Map? ?? {}),
+    },
+  );
 }

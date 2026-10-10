@@ -1,3 +1,5 @@
+import '../../../core/widgets/word_wrap_text.dart';
+import '../../../core/widgets/main_navigation_bar.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,20 +29,22 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
               children: [
-                Text(
+                WordWrapText(
                   '기록을 바탕으로 나의 패턴을 살펴봐요 🌱',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 18),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 7, label: Text('최근 7일')),
-                    ButtonSegment(value: 30, label: Text('최근 30일')),
-                    ButtonSegment(value: 90, label: Text('최근 90일')),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final days in [7, 30, 90])
+                      ChoiceChip(
+                        label: Text('최근 $days일'),
+                        selected: _days == days,
+                        onSelected: (_) => setState(() => _days = days),
+                      ),
                   ],
-                  selected: {_days},
-                  onSelectionChanged: (value) =>
-                      setState(() => _days = value.first),
                 ),
                 const SizedBox(height: 18),
                 if (summary.totalRecords == 0)
@@ -79,31 +83,7 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
             );
           },
         ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: 3,
-      onDestinationSelected: (index) {
-        if (index == 0) context.go('/home');
-        if (index == 1) context.go('/calendar');
-        if (index == 2) context.go('/record');
-        if (index == 4) context.go('/tracking-profile');
-      },
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home_rounded), label: '홈'),
-        NavigationDestination(
-          icon: Icon(Icons.calendar_month_rounded),
-          label: '캘린더',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.add_circle_rounded),
-          label: '기록하기',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.bar_chart_rounded),
-          label: '인사이트',
-        ),
-        NavigationDestination(icon: Icon(Icons.menu_rounded), label: '더보기'),
-      ],
-    ),
+    bottomNavigationBar: const MainNavigationBar(selectedIndex: 3),
   );
 }
 
@@ -111,35 +91,36 @@ class _SummaryGrid extends StatelessWidget {
   const _SummaryGrid({required this.summary});
   final InsightSummary summary;
   @override
-  Widget build(BuildContext context) => GridView.count(
-    crossAxisCount: 2,
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    mainAxisSpacing: 10,
-    crossAxisSpacing: 10,
-    childAspectRatio: 1.55,
-    children: [
-      _MetricCard(
-        label: '기록한 날',
-        value: '${summary.activeDays}일',
-        color: AppColors.primary,
-      ),
-      _MetricCard(
-        label: '기록 연속성',
-        value: '${summary.consistencyPercent}%',
-        color: const Color(0xFF4B91D5),
-      ),
-      _MetricCard(
-        label: '식사 기록',
-        value: '${summary.mealCount}회',
-        color: const Color(0xFFE0A020),
-      ),
-      _MetricCard(
-        label: '평온한 날',
-        value: '${summary.normalDays}일',
-        color: const Color(0xFFE66F72),
-      ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+      final columns = constraints.maxWidth < 300 || scale > 1.3 ? 1 : 2;
+      final width = (constraints.maxWidth - (columns - 1) * 10) / columns;
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (final metric in [
+            ('기록한 날', '${summary.activeDays}일', AppColors.primary),
+            (
+              '기록 연속성',
+              '${summary.consistencyPercent}%',
+              const Color(0xFF4B91D5),
+            ),
+            ('식사 기록', '${summary.mealCount}회', const Color(0xFFE0A020)),
+            ('평온한 날', '${summary.normalDays}일', const Color(0xFFE66F72)),
+          ])
+            SizedBox(
+              width: width,
+              child: _MetricCard(
+                label: metric.$1,
+                value: metric.$2,
+                color: metric.$3,
+              ),
+            ),
+        ],
+      );
+    },
   );
 }
 
@@ -159,7 +140,7 @@ class _MetricCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(color: AppColors.muted)),
-          const Spacer(),
+          const SizedBox(height: 12),
           Text(
             value,
             style: Theme.of(
@@ -182,7 +163,7 @@ class _ActivityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('기록 활동', style: Theme.of(context).textTheme.titleLarge),
+          Text('기록 횟수', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
           Text(
             '${summary.days}일 동안 ${summary.totalRecords}개의 기록',
@@ -228,7 +209,7 @@ class _PatternCard extends StatelessWidget {
               label: '평균 배변 형태',
               value: summary.averageBristol == null
                   ? '기록 없음'
-                  : 'Bristol ${summary.averageBristol!.toStringAsFixed(1)}',
+                  : '${summary.averageBristol!.toStringAsFixed(1)} / 7',
             ),
             _PatternRow(
               icon: Icons.local_fire_department_outlined,
@@ -260,7 +241,7 @@ class _PatternRow extends StatelessWidget {
       child: Icon(icon, color: AppColors.primary),
     ),
     title: Text(label),
-    trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+    subtitle: Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
   );
 }
 
@@ -337,9 +318,9 @@ class _ActivityPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
     final maxValue = math.max(1, values.reduce(math.max));
-    const gap = 3.0;
+    final gap = math.min(3.0, size.width / values.length * 0.25);
     final width = math.max(
-      2.0,
+      0.0,
       (size.width - gap * (values.length - 1)) / values.length,
     );
     final active = Paint()..color = AppColors.primary;

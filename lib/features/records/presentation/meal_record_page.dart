@@ -1,9 +1,11 @@
+import '../domain/meal_group.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/health_record.dart';
 import 'records_controller.dart';
+import 'meal_category_selector.dart';
 
 class MealRecordPage extends ConsumerStatefulWidget {
   const MealRecordPage({super.key, this.record});
@@ -29,7 +31,7 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
       text: record?.data['amount_text']?.toString() ?? '1인분',
     );
     _kcal = TextEditingController(
-      text: record?.data['energy_kcal']?.toString() ?? '',
+      text: record == null ? '' : mealCalories(record).toString(),
     );
     _memo = TextEditingController(text: record?.data['memo']?.toString() ?? '');
     _mealType = record?.data['meal_type']?.toString() ?? 'meal';
@@ -53,8 +55,15 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
       return;
     }
     final user = ref.read(authRepositoryProvider).currentUser!;
-    final kcal = int.tryParse(_kcal.text) ?? 0;
+    final kcal = double.tryParse(_kcal.text.trim()) ?? 0;
+    if (!kcal.isFinite || kcal < 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('열량을 올바른 숫자로 입력해 주세요.')));
+      return;
+    }
     final data = <String, Object?>{
+      ...?widget.record?.data,
       'meal_type': _mealType,
       'amount_text': _amount.text.trim(),
       'energy_kcal': kcal,
@@ -84,16 +93,9 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
     onSave: _save,
     child: Column(
       children: [
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'breakfast', label: Text('아침')),
-            ButtonSegment(value: 'lunch', label: Text('점심')),
-            ButtonSegment(value: 'dinner', label: Text('저녁')),
-            ButtonSegment(value: 'meal', label: Text('기타')),
-          ],
-          selected: {_mealType},
-          onSelectionChanged: (value) =>
-              setState(() => _mealType = value.first),
+        MealCategorySelector(
+          value: _mealType,
+          onChanged: (value) => setState(() => _mealType = value),
         ),
         const SizedBox(height: 18),
         TextField(
@@ -114,9 +116,9 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
         const SizedBox(height: 12),
         TextField(
           controller: _kcal,
-          keyboardType: TextInputType.number,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
-            labelText: '열량 (선택)',
+            labelText: '열량',
             suffixText: 'kcal',
           ),
         ),
@@ -132,7 +134,7 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
         TextField(
           controller: _memo,
           maxLines: 3,
-          decoration: const InputDecoration(labelText: '메모 (선택)'),
+          decoration: const InputDecoration(labelText: '메모'),
         ),
       ],
     ),
