@@ -1,3 +1,6 @@
+import { analysisDiagnosis, inspectImage } from './analysis_diagnosis.ts'
+import { foodIdentity } from './food_identity.ts'
+import { requestImageAnalysis } from './gemini_request.ts'
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 
@@ -10,6 +13,8 @@ const corsHeaders = {
 const foodSchema = {
   "type": "object",
   "properties": {
+    "imageQuality": {"type":"string","enum":["clear","blurry","too_dark","glare","low_resolution","unknown"]},
+    "failureReason": {"type":"string","enum":["none","no_food","product_unidentified","product_name_unreadable","nutrition_unreadable","low_confidence","unknown"]},
     "foods": {
       "type": "array",
       "items": {
@@ -24,6 +29,9 @@ const foodSchema = {
           "confidence": {
             "type": "number"
           },
+          "isProduct": {"type": "boolean"},
+          "visibleProductName": {"type": "string"},
+          "nutritionLabelReadable": {"type": "boolean"},
           "amountG": {
             "type": "number"
           },
@@ -66,6 +74,9 @@ const foodSchema = {
           }
         },
         "required": [
+          "isProduct",
+          "visibleProductName",
+          "nutritionLabelReadable",
           "displayName",
           "normalizedName",
           "confidence",
@@ -77,6 +88,8 @@ const foodSchema = {
     }
   },
   "required": [
+    "imageQuality",
+    "failureReason",
     "foods"
   ]
 } as const
@@ -125,10 +138,9 @@ function sanitizeFoods(value: unknown) {
   return foods.slice(0, 12).flatMap((item) => {
     if (!item || typeof item !== 'object') return []
     const food = item as UnknownRecord
-    const displayName = typeof food.displayName === 'string'
-      ? food.displayName.trim().slice(0, 80)
-      : ''
-    if (!displayName) return []
+    const identity = foodIdentity(food)
+    if (!identity) return []
+    const { displayName, isProduct } = identity
     const normalizedName = typeof food.normalizedName === 'string'
       ? food.normalizedName.trim().slice(0, 80)
       : displayName
@@ -138,9 +150,10 @@ function sanitizeFoods(value: unknown) {
 
     return [{
       displayName,
-      normalizedName: normalizedName || displayName,
+      normalizedName: isProduct ? displayName : normalizedName || displayName,
+      isProduct,
       confidence: clamp(finiteNumber(food.confidence), 0, 1),
-      amountG: clamp(finiteNumber(food.amountG, 100), 1, 3000),
+      amountG: isProduct ? finiteNumber(food.amountG) : clamp(finiteNumber(food.amountG, 100), 1, 3000),
       tags: Array.isArray(food.tags)
         ? food.tags
           .filter((tag): tag is string => typeof tag === 'string')
@@ -149,12 +162,12 @@ function sanitizeFoods(value: unknown) {
           .slice(0, 6)
         : [],
       nutrition: {
-        baseAmountG: clamp(finiteNumber(sourceNutrition.baseAmountG, 100), 1, 1000),
-        energyKcal: clamp(finiteNumber(sourceNutrition.energyKcal), 0, 1000),
-        carbohydrateG: clamp(finiteNumber(sourceNutrition.carbohydrateG), 0, 100),
-        proteinG: clamp(finiteNumber(sourceNutrition.proteinG), 0, 100),
-        fatG: clamp(finiteNumber(sourceNutrition.fatG), 0, 100),
-        sodiumMg: clamp(finiteNumber(sourceNutrition.sodiumMg), 0, 10000),
+        baseAmountG: isProduct ? finiteNumber(sourceNutrition.baseAmountG) : clamp(finiteNumber(sourceNutrition.baseAmountG, 100), 1, 1000),
+        energyKcal: isProduct ? finiteNumber(sourceNutrition.energyKcal) : clamp(finiteNumber(sourceNutrition.energyKcal), 0, 1000),
+        carbohydrateG: isProduct ? finiteNumber(sourceNutrition.carbohydrateG) : clamp(finiteNumber(sourceNutrition.carbohydrateG), 0, 100),
+        proteinG: isProduct ? finiteNumber(sourceNutrition.proteinG) : clamp(finiteNumber(sourceNutrition.proteinG), 0, 100),
+        fatG: isProduct ? finiteNumber(sourceNutrition.fatG) : clamp(finiteNumber(sourceNutrition.fatG), 0, 100),
+        sodiumMg: isProduct ? finiteNumber(sourceNutrition.sodiumMg) : clamp(finiteNumber(sourceNutrition.sodiumMg), 0, 10000),
       },
     }]
   })
@@ -213,6 +226,7 @@ Deno.serve(async (request: Request) => {
     return json(403, { error: 'storage_path_forbidden' })
   }
 
+  const imageDownloadStarted = performance.now()
   const { data: image, error: downloadError } = await client.storage
     .from('meals')
     .download(storagePath)
@@ -220,15 +234,20 @@ Deno.serve(async (request: Request) => {
     console.error('analyze-meal-image: image download failed', downloadError?.message)
     return json(404, { error: 'image_not_found' })
   }
-  if (image.size === 0 || image.size > 10 * 1024 * 1024) {
+  if (image.size === 0) return json(422, {error:'invalid_image'})
+  if (image.size > 10 * 1024 * 1024) {
     return json(413, { error: 'unsupported_image_size' })
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
-  let geminiResponse: Response
-  try {
-    geminiResponse = await fetch(endpoint, {
+  const imageBytes = new Uint8Array(await image.arrayBuffer())
+  const imageInfo = inspectImage(imageBytes)
+  if (imageInfo.code) return json(422, {error:imageInfo.code})
+  const storageMs = Math.round(performance.now() - imageDownloadStarted)
+  const geminiStarted = performance.now()
+  const requestGemini = async (requestModel: string, timeoutMs: number): Promise<Response> => {
+    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(requestModel)}:generateContent`, {
       method: 'POST',
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': geminiApiKey,
@@ -239,18 +258,19 @@ Deno.serve(async (request: Request) => {
           parts: [
             {
               inlineData: {
-                mimeType: mimeTypeFor(storagePath, image.type),
-                data: toBase64(await image.arrayBuffer()),
+                mimeType: imageInfo.mime || mimeTypeFor(storagePath, image.type),
+                data: toBase64(imageBytes.buffer),
               },
             },
             {
               text: locale === 'ko-KR'
-                ? '사진에 보이는 음식 또는 식품 포장 제품을 식별하세요. 포장 제품은 읽을 수 있는 제품명과 브랜드를 사용하고, 보이지 않는 이름은 지어내지 마세요. 영양표가 읽히면 표시된 기준량을 baseAmountG로 변환하고 그 기준의 영양값을 사용하세요. 나트륨은 mg입니다. 일반 음식이나 영양표가 안 보이는 제품의 영양값은 보수적으로 추정하고 tags에 영양 추정을 넣으세요. 제품은 표시된 1회 섭취량을 amountG로 사용하고 불명확하면 100g을 사용하세요. 음식이나 식품 포장이 없으면 foods를 비우세요. 확실하지 않은 식별은 confidence를 낮추세요. 건강 상태나 질병을 추론하지 마세요.'
-                : 'Identify visible foods or packaged food products. Read visible product names and brands without inventing names. When a nutrition label is legible, convert its reference quantity to baseAmountG in grams and return nutrition for that quantity, with sodium in mg. Otherwise conservatively estimate nutrition and add an estimated nutrition tag. Use the labeled serving weight for amountG or 100g when unknown. Return empty foods if no food or food packaging is visible. Lower confidence when uncertain. Do not infer health conditions.',
+                ? '사진 상태를 imageQuality로 판정하세요. 흐림은 blurry, 어두움은 too_dark, 빛 반사는 glare, 작은 해상도는 low_resolution, 판단 불가면 unknown입니다. 판단 근거가 없으면 원인을 지어내지 마세요. 식별 실패는 failureReason으로 구분하세요. no_food는 음식/포장이 없음, product_unidentified는 상품 불확실, product_name_unreadable는 제품명 판독 불가, nutrition_unreadable는 영양표 판독 불가, low_confidence는 낮은 확신, unknown은 원인 불명입니다. 상품 DB에서 조회하지 않았으므로 상품이 존재하지 않는다고 주장하지 마세요. 한국어로만 응답하세요. displayName, normalizedName, tags는 한국어로 작성하세요. 사진에 한글 제품명이 보이면 visibleProductName에 보이는 이름을 그대로 옮기고 영어로 번역하거나 유사한 해외 제품으로 대체하지 마세요. 포장 상품은 isProduct=true로, 요리는 false로 표시하세요. 상품의 제품명과 영양표를 정확하게 읽지 못하면 foods를 비우세요. nutritionLabelReadable는 영양표를 실제로 읽었을 때만 true입니다. 식별 확신이 0.85 미만이면 후보를 반환하지 마세요. 사진에 보이는 음식 또는 식품 포장 제품을 식별하세요. 포장 제품은 읽을 수 있는 제품명과 브랜드를 사용하고, 보이지 않는 이름은 지어내지 마세요. 영양표가 읽히면 표시된 기준량을 baseAmountG로 변환하고 그 기준의 영양값을 사용하세요. 나트륨은 mg입니다. 일반 음식이나 영양표가 안 보이는 제품의 영양값은 보수적으로 추정하고 tags에 영양 추정을 넣으세요. 제품은 한 개 전체 용량을 amountG로 사용하세요. 제품 한 개 용량이 불명확하면 foods를 비우세요. 음식이나 식품 포장이 없으면 foods를 비우세요. 확실하지 않은 식별은 confidence를 낮추세요. 건강 상태나 질병을 추론하지 마세요.'
+                : 'Identify visible foods or packaged products. Set isProduct for packaged products, copy the exact visible label into visibleProductName, and set nutritionLabelReadable only for a legible nutrition label. Do not translate Korean brand names to English. Return no candidate when confidence is below 0.85 or a product name, weight, or nutrition label cannot be read. Read visible product names and brands without inventing names. When a nutrition label is legible, convert its reference quantity to baseAmountG in grams and return nutrition for that quantity, with sodium in mg. Otherwise conservatively estimate nutrition and add an estimated nutrition tag. Use the labeled serving weight for amountG or 100g when unknown. Return empty foods if no food or food packaging is visible. Lower confidence when uncertain. Do not infer health conditions.',
             },
           ],
         }],
         generationConfig: {
+          ...(/gemini-3[.].*flash/.test(requestModel) ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}),
           responseMimeType: 'application/json',
           responseJsonSchema: foodSchema,
           temperature: 0.2,
@@ -258,9 +278,17 @@ Deno.serve(async (request: Request) => {
         },
       }),
     })
+  }
+  let geminiResponse: Response
+  let usedModel = model
+  try {
+    const result = await requestImageAnalysis(model, requestGemini)
+    geminiResponse = result.response
+    usedModel = result.model
   } catch (error) {
-    console.error('analyze-meal-image: Gemini network error', error)
-    return json(502, { error: 'ai_unavailable' })
+    console.error('analyze-meal-image: Gemini network error', { model, storageMs, geminiMs: Math.round(performance.now()-geminiStarted) })
+    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+    return json(timedOut ? 504 : 502, { error: timedOut ? 'ai_timeout' : 'ai_unavailable' })
   }
 
   const geminiPayload = await geminiResponse.json().catch(() => ({})) as UnknownRecord
@@ -295,7 +323,10 @@ Deno.serve(async (request: Request) => {
     console.error('analyze-meal-image: Gemini returned invalid JSON', { model })
     return json(502, { error: 'ai_invalid_result' })
   }
-  const foods = sanitizeFoods(parsed)
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as UnknownRecord).foods)) return json(502, {error:'ai_invalid_result'})
+  const validatedFoods = sanitizeFoods(parsed)
+  const diagnosis = analysisDiagnosis(parsed as UnknownRecord, validatedFoods.length)
+  const foods = diagnosis.code === 'recognized' ? validatedFoods : []
   const usage = geminiPayload.usageMetadata && typeof geminiPayload.usageMetadata === 'object'
     ? geminiPayload.usageMetadata as UnknownRecord
     : {}
@@ -306,15 +337,18 @@ Deno.serve(async (request: Request) => {
   }
   const modelVersion = typeof geminiPayload.modelVersion === 'string'
     ? geminiPayload.modelVersion
-    : model
+    : usedModel
 
   console.info('analyze-meal-image: completed', {
+    storageMs, geminiMs: Math.round(performance.now()-geminiStarted),
     model: modelVersion,
     ...usageSummary,
     foodCount: foods.length,
+    diagnosis: diagnosis.code, diagnosisSource: diagnosis.source,
   })
   return json(200, {
     foods,
+    diagnosis,
     analysis: {
       model: modelVersion,
       usage: usageSummary,

@@ -20,3 +20,5 @@ assert.equal(productCandidate({ ...base, nutriments: { 'energy-kcal_100g': 10 } 
 assert.equal(productCandidate({ ...base, serving_quantity_unit: 'ml' }).amountG, 100)
 assert.equal(productCandidate({ ...base, nutriments: Object.fromEntries(Object.keys(base.nutriments).map(key => [key, 0])) }).nutrition.energyKcal, 0)
 console.log('Barcode validation and nutrition conversion checks passed')
+assert.equal(productCandidate({ ...base, product_quantity: 200, product_quantity_unit: 'g' }).amountG, 200)
+assert.equal(productCandidate(base).isProduct, true)

@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import '../../meal_analysis/data/meal_analysis_repository.dart';
+import 'meal_photo.dart';
 import '../domain/meal_group.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +13,8 @@ import 'records_controller.dart';
 import 'meal_category_selector.dart';
 
 class MealRecordPage extends ConsumerStatefulWidget {
-  const MealRecordPage({super.key, this.record});
+  const MealRecordPage({super.key, this.record, this.pickImage});
+  final Future<XFile?> Function(ImageSource source)? pickImage;
   final HealthRecord? record;
   @override
   ConsumerState<MealRecordPage> createState() => _MealRecordPageState();
@@ -21,6 +27,10 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
   late final TextEditingController _memo;
   String _mealType = 'meal';
   bool _smallMeal = false;
+  bool _saving = false, _saved = false;
+  Uint8List? _photoBytes;
+  String? _photoPath, _newPhotoPath;
+  String _filename = 'meal.jpg';
 
   @override
   void initState() {
@@ -36,15 +46,66 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
     _memo = TextEditingController(text: record?.data['memo']?.toString() ?? '');
     _mealType = record?.data['meal_type']?.toString() ?? 'meal';
     _smallMeal = record?.data['small_meal'] == true;
+    _photoPath = record?.data['photo_path']?.toString();
   }
 
   @override
   void dispose() {
+    if (!_saved && _newPhotoPath != null) {
+      unawaited(
+        ref.read(mealAnalysisRepositoryProvider).discardPhoto(_newPhotoPath),
+      );
+    }
     _food.dispose();
     _amount.dispose();
     _kcal.dispose();
     _memo.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    try {
+      final file =
+          await (widget.pickImage?.call(source) ??
+              ImagePicker().pickImage(
+                source: source,
+                maxWidth: 1600,
+                maxHeight: 1600,
+                imageQuality: 82,
+              ));
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      if (_newPhotoPath != null) {
+        unawaited(
+          ref.read(mealAnalysisRepositoryProvider).discardPhoto(_newPhotoPath),
+        );
+      }
+      setState(() {
+        _photoBytes = bytes;
+        _filename = file.name;
+        _newPhotoPath = null;
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('사진을 불러오지 못했어요. 다시 선택해 주세요.')),
+        );
+      }
+    }
+  }
+
+  void _removePhoto() {
+    if (_newPhotoPath != null) {
+      unawaited(
+        ref.read(mealAnalysisRepositoryProvider).discardPhoto(_newPhotoPath),
+      );
+    }
+    setState(() {
+      _photoBytes = null;
+      _photoPath = null;
+      _newPhotoPath = null;
+    });
   }
 
   Future<void> _save() async {
@@ -62,34 +123,73 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
       ).showSnackBar(const SnackBar(content: Text('열량을 올바른 숫자로 입력해 주세요.')));
       return;
     }
-    final data = <String, Object?>{
-      ...?widget.record?.data,
-      'meal_type': _mealType,
-      'amount_text': _amount.text.trim(),
-      'energy_kcal': kcal,
-      'small_meal': _smallMeal,
-      'memo': _memo.text.trim(),
-    };
-    final record = HealthRecord(
-      id: widget.record?.id ?? 'meal-${DateTime.now().microsecondsSinceEpoch}',
-      userId: user.id,
-      type: HealthRecordType.meal,
-      recordedAt: widget.record?.recordedAt ?? DateTime.now(),
-      title: _food.text.trim(),
-      summary: '${_amount.text.trim()} · $kcal kcal',
-      data: data,
-    );
-    widget.record == null
-        ? await ref.read(recordsProvider.notifier).create(record)
-        : await ref.read(recordsProvider.notifier).updateRecord(record);
-    if (mounted && !ref.read(recordsProvider).hasError) context.pop();
+    setState(() => _saving = true);
+    try {
+      if (_photoBytes != null && _newPhotoPath == null) {
+        final photoRepository = ref.read(mealAnalysisRepositoryProvider);
+        _newPhotoPath = await photoRepository.uploadPhoto(
+          userId: user.id,
+          imageBytes: _photoBytes!,
+          filename: _filename,
+        );
+        if (!mounted) {
+          unawaited(photoRepository.discardPhoto(_newPhotoPath));
+          return;
+        }
+      }
+      final data = <String, Object?>{
+        ...?widget.record?.data,
+        'photo_path': _newPhotoPath ?? _photoPath,
+        'meal_type': _mealType,
+        'amount_text': _amount.text.trim(),
+        'energy_kcal': kcal,
+        'small_meal': _smallMeal,
+        'memo': _memo.text.trim(),
+      };
+      final record = HealthRecord(
+        id:
+            widget.record?.id ??
+            'meal-${DateTime.now().microsecondsSinceEpoch}',
+        userId: user.id,
+        type: HealthRecordType.meal,
+        recordedAt: widget.record?.recordedAt ?? DateTime.now(),
+        title: _food.text.trim(),
+        summary: '${_amount.text.trim()} · $kcal kcal',
+        data: data,
+      );
+      widget.record == null
+          ? await ref.read(recordsProvider.notifier).create(record)
+          : await ref.read(recordsProvider.notifier).updateRecord(record);
+      if (mounted && !ref.read(recordsProvider).hasError) {
+        _saved = true;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/timeline');
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is StateError
+                  ? error.message.toString()
+                  : '사진을 저장하지 못했어요. 다시 시도해 주세요.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) => _RecordScaffold(
     title: widget.record == null ? '식사 직접 입력' : '식사 기록 수정',
     description: 'AI 없이 음식명과 섭취량을 직접 기록해요.',
-    saving: ref.watch(recordsProvider).isLoading,
+    saving: _saving || ref.watch(recordsProvider).isLoading,
     onSave: _save,
     child: Column(
       children: [
@@ -98,6 +198,34 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
           onChanged: (value) => setState(() => _mealType = value),
         ),
         const SizedBox(height: 18),
+        if (_photoBytes != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.memory(_photoBytes!, height: 160, fit: BoxFit.contain),
+          ),
+        if (_photoBytes == null && _photoPath != null)
+          MealPhotoThumbnail(path: _photoPath!, fallback: const Text('첨부된 사진')),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton.icon(
+              onPressed: _saving ? null : () => _pickPhoto(ImageSource.camera),
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: const Text('사진 촬영'),
+            ),
+            TextButton.icon(
+              onPressed: _saving ? null : () => _pickPhoto(ImageSource.gallery),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('사진 선택'),
+            ),
+            if (_photoBytes != null || _photoPath != null)
+              TextButton(
+                onPressed: _saving ? null : _removePhoto,
+                child: const Text('사진 삭제'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
         TextField(
           controller: _food,
           decoration: const InputDecoration(
@@ -158,6 +286,7 @@ class _RecordScaffold extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(title)),
     body: ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(20),
       children: [
         Text(description, style: Theme.of(context).textTheme.bodyLarge),
@@ -167,11 +296,14 @@ class _RecordScaffold extends StatelessWidget {
         ),
       ],
     ),
-    bottomNavigationBar: SafeArea(
-      minimum: const EdgeInsets.all(20),
-      child: FilledButton(
-        onPressed: saving ? null : onSave,
-        child: Text(saving ? '저장 중...' : '기록 저장하기'),
+    bottomNavigationBar: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        minimum: const EdgeInsets.all(20),
+        child: FilledButton(
+          onPressed: saving ? null : onSave,
+          child: Text(saving ? '저장 중...' : '기록 저장하기'),
+        ),
       ),
     ),
   );

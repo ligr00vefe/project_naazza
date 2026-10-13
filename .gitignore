@@ -53,3 +53,6 @@ app.*.map.json
 config/public.generated.json
 /artifacts/
 /.tmp/
+
+# Kotlin Gradle local session cache
+/android/.kotlin/

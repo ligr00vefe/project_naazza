@@ -1,10 +1,18 @@
+import '../domain/photo_failure.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/meal_analysis.dart';
 import 'meal_analysis_repository.dart';
 
 class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
-  SupabaseMealAnalysisRepository(this._client);
+  SupabaseMealAnalysisRepository(
+    this._client, {
+    this.uploadTimeout = const Duration(seconds: 30),
+    this.analysisTimeout = const Duration(seconds: 40),
+    this.cleanupTimeout = const Duration(seconds: 5),
+  });
+  final Duration uploadTimeout, analysisTimeout, cleanupTimeout;
   final SupabaseClient _client;
 
   @override
@@ -13,36 +21,94 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
     required Uint8List imageBytes,
     required String filename,
   }) async {
+    final path = await uploadPhoto(
+      userId: userId,
+      imageBytes: imageBytes,
+      filename: filename,
+    );
+    final FunctionResponse response;
+    try {
+      response = await _client.functions
+          .invoke(
+            'analyze-meal-image',
+            body: {'storagePath': path, 'locale': 'ko-KR'},
+          )
+          .timeout(analysisTimeout);
+    } on TimeoutException {
+      unawaited(_removeUploadedPhoto(path));
+      throw PhotoAnalysisException(PhotoFailure.timeout);
+    } on FunctionException catch (error) {
+      unawaited(_removeUploadedPhoto(path));
+      final details = error.details;
+      final code = details is Map
+          ? (details['error'] ?? details['code'])
+          : null;
+      if (code == 'invalid_session' || code == 'authentication_required') {
+        throw StateError(_functionErrorMessage(error, 'AI 분석'));
+      }
+      final reason = code != null
+          ? PhotoFailure.fromCode(code)
+          : error.status == 0
+          ? PhotoFailure.network
+          : PhotoFailure.server;
+      throw PhotoAnalysisException(reason);
+    } catch (_) {
+      unawaited(_removeUploadedPhoto(path));
+      throw PhotoAnalysisException(PhotoFailure.network);
+    }
+    if (response.data is! Map || (response.data as Map)['foods'] is! List) {
+      unawaited(_removeUploadedPhoto(path));
+      throw PhotoAnalysisException(PhotoFailure.invalidResponse);
+    }
+    try {
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final foods = [
+        for (final value in data['foods'] as List? ?? const [])
+          _foodFromJson(Map<String, dynamic>.from(value as Map)),
+      ];
+      return MealAnalysisResult(
+        photoPath: path,
+        foods: foods,
+        failure: foods.isEmpty
+            ? PhotoFailure.fromCode((data['diagnosis'] as Map?)?['code'])
+            : null,
+      );
+    } catch (_) {
+      unawaited(_removeUploadedPhoto(path));
+      throw PhotoAnalysisException(PhotoFailure.invalidResponse);
+    }
+  }
+
+  @override
+  Future<String> uploadPhoto({
+    required String userId,
+    required Uint8List imageBytes,
+    required String filename,
+  }) async {
     final extension = filename.contains('.')
         ? filename.split('.').last.toLowerCase()
         : 'jpg';
     final path = '$userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
-    await _client.storage
-        .from('meals')
-        .uploadBinary(
-          path,
-          imageBytes,
-          fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
-        );
-    final FunctionResponse response;
     try {
-      response = await _client.functions.invoke(
-        'analyze-meal-image',
-        body: {'storagePath': path, 'locale': 'ko-KR'},
+      await _client.storage
+          .from('meals')
+          .uploadBinary(
+            path,
+            imageBytes,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          )
+          .timeout(
+            uploadTimeout,
+            onTimeout: () => throw PhotoAnalysisException(PhotoFailure.timeout),
+          );
+    } on StorageException catch (error) {
+      throw PhotoAnalysisException(
+        error.statusCode == '413'
+            ? PhotoFailure.tooLarge
+            : PhotoFailure.uploadFailed,
       );
-    } on FunctionException catch (error) {
-      await _removeUploadedPhoto(path);
-      throw StateError(_functionErrorMessage(error, 'AI 분석'));
-    } catch (_) {
-      await _removeUploadedPhoto(path);
-      rethrow;
     }
-    final data = Map<String, dynamic>.from(response.data as Map);
-    final foods = [
-      for (final value in data['foods'] as List? ?? const [])
-        _foodFromJson(Map<String, dynamic>.from(value as Map)),
-    ];
-    return MealAnalysisResult(photoPath: path, foods: foods);
+    return path;
   }
 
   @override
@@ -54,8 +120,11 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
       return;
     }
     try {
-      await _client.storage.from('meals').remove([photoPath]);
-    } on StorageException {
+      await _client.storage
+          .from('meals')
+          .remove([photoPath])
+          .timeout(cleanupTimeout);
+    } catch (_) {
       // Best-effort cleanup for a photo that was never saved as a meal.
     }
   }
@@ -99,8 +168,11 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
 
   Future<void> _removeUploadedPhoto(String path) async {
     try {
-      await _client.storage.from('meals').remove([path]);
-    } on StorageException {
+      await _client.storage
+          .from('meals')
+          .remove([path])
+          .timeout(cleanupTimeout);
+    } catch (_) {
       // The original analysis error is more useful to the user than cleanup.
     }
   }
@@ -118,6 +190,8 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
         '이 제품에는 영양정보가 등록되지 않았어요. 사진 분석이나 직접 입력을 이용해 주세요.',
       'ai_free_quota_exhausted' =>
         'Gemini 무료 사용 한도를 모두 사용했어요. 한도가 초기화된 뒤 다시 시도해 주세요.',
+      'ai_timeout' => '사진 분석 시간이 초과됐어요. 다시 촬영하거나 직접 입력해 주세요.',
+      'ai_unavailable' => 'AI 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
       'ai_not_configured' => 'AI 서버 설정이 완료되지 않았어요.',
       'invalid_session' ||
       'authentication_required' => '로그인 세션이 만료됐어요. 다시 로그인해 주세요.',
@@ -134,6 +208,7 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
     );
     return FoodCandidate(
       name: json['displayName'] as String,
+      isProduct: json['isProduct'] == true,
       normalizedName:
           json['normalizedName'] as String? ?? json['displayName'] as String,
       confidence: (json['confidence'] as num?)?.toDouble() ?? 0,

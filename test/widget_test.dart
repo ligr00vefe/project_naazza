@@ -87,11 +87,15 @@ void main() {
     expect(find.text('식사 직접 입력'), findsOneWidget);
     await tester.enterText(find.byType(TextField).at(0), '제육볶음');
     await tester.enterText(find.byType(TextField).at(2), '520');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('소식했어요'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(find.byType(Switch));
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(Switch));
     await tester.pump();
     await tester.tap(find.text('기록 저장하기'));

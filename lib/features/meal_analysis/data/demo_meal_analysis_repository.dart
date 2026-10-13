@@ -63,6 +63,13 @@ class DemoMealAnalysisRepository implements MealAnalysisRepository {
   }
 
   @override
+  Future<String> uploadPhoto({
+    required String userId,
+    required Uint8List imageBytes,
+    required String filename,
+  }) async => '$userId/manual-photo.jpg';
+
+  @override
   Future<void> discardPhoto(String? photoPath) async {}
 
   @override

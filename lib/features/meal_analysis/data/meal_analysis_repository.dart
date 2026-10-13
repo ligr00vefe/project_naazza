@@ -9,6 +9,12 @@ abstract interface class MealAnalysisRepository {
     required String filename,
   });
 
+  Future<String> uploadPhoto({
+    required String userId,
+    required Uint8List imageBytes,
+    required String filename,
+  });
+
   Future<void> discardPhoto(String? photoPath);
   Future<List<FoodCandidate>> searchNutrition(String query);
   Future<FoodCandidate?> lookupBarcode(String barcode);

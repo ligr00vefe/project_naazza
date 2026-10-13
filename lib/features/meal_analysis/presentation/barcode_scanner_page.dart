@@ -60,7 +60,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
           .lookupBarcode(value.trim());
       if (!mounted) return;
       setState(() {
-        _product = product;
+        _product = product?.copyWith(isProduct: true);
         if (product == null) {
           _error = '등록된 제품 정보가 없어요. 제품 사진 분석이나 직접 입력을 이용해 주세요.';
         }
@@ -82,7 +82,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
     final product = _product;
     if (product == null || product.amountG <= 0) return;
     final user = ref.read(authRepositoryProvider).currentUser!;
-    final nutrition = product.nutrition.forAmount(product.amountG);
+    final nutrition = product.consumedNutrition;
     await ref
         .read(recordsProvider.notifier)
         .create(
@@ -93,10 +93,11 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
             recordedAt: DateTime.now(),
             title: product.name,
             summary:
-                '${product.amountG.round()}g · ${nutrition.energyKcal.round()} kcal',
+                '${product.quantity}개 · ${nutrition.energyKcal.round()} kcal',
             data: {
               'meal_type': _mealType,
-              'amount_text': '${product.amountG.round()}g',
+              'amount_text':
+                  '${product.quantity}개 · 총 ${product.consumedAmountG}g',
               'energy_kcal': nutrition.energyKcal,
               'small_meal': _smallMeal,
               'barcode': _barcode,
@@ -239,7 +240,7 @@ class _ProductCard extends StatelessWidget {
           Text(product.name, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Text(
-            '섭취량 ${product.amountG}g · ${product.nutrition.forAmount(product.amountG).energyKcal.round()} kcal',
+            '1개당 ${product.amountG}g · 총 ${product.consumedNutrition.energyKcal.round()} kcal',
           ),
           TextButton(
             onPressed: () async {
@@ -252,6 +253,7 @@ class _ProductCard extends StatelessWidget {
             child: const Text('섭취량 수정'),
           ),
           FoodPortionControl(food: product, onChanged: onChanged),
+          ProductQuantityControl(food: product, onChanged: onChanged),
         ],
       ),
     ),

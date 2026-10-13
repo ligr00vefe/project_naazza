@@ -1,3 +1,5 @@
+import '../domain/photo_failure.dart';
+import 'photo_analysis_policy.dart';
 import 'food_portion_dialog.dart';
 import 'food_search_dialog.dart';
 import 'dart:async';
@@ -27,6 +29,9 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   String? _photoPath;
   List<FoodCandidate> _foods = [];
   bool _analyzing = false;
+  bool _takingLong = false;
+  int _recognitionFailures = 0, _responseFailures = 0;
+  PhotoFailure? _lastFailureReason;
   bool _smallMeal = false;
   String _mealType = 'meal';
   bool _saved = false;
@@ -46,38 +51,111 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       _foods = [];
       _imageBytes = await file.readAsBytes();
       _filename = file.name;
+      _recognitionFailures = 0;
+      _responseFailures = 0;
+      _lastFailureReason = null;
       if (mounted) setState(() {});
       await _analyze();
     } catch (error) {
-      setState(() => _error = '이미지를 불러오지 못했어요: $error');
+      if (mounted) setState(() => _error = '이미지를 불러오지 못했어요. 다시 선택해 주세요.');
     }
   }
 
+  String _failureMessage(PhotoFailure reason) {
+    final count = _lastFailureReason == reason
+        ? (reason.isTransport ? _responseFailures : _recognitionFailures) + 1
+        : 1;
+    _lastFailureReason = reason;
+    _responseFailures = reason.isTransport ? count : 0;
+    _recognitionFailures = reason.isTransport ? 0 : count;
+    return photoFailureMessage(
+      timedOut: reason == PhotoFailure.timeout,
+      failures: count,
+      reason: reason,
+    );
+  }
+
   Future<void> _analyze() async {
+    if (_analyzing) return;
     final bytes = _imageBytes;
     if (bytes == null) return;
     setState(() {
       _analyzing = true;
+      _takingLong = false;
       _error = null;
     });
     try {
+      if (_photoPath != null) {
+        unawaited(
+          ref.read(mealAnalysisRepositoryProvider).discardPhoto(_photoPath),
+        );
+        _photoPath = null;
+      }
       final user = ref.read(authRepositoryProvider).currentUser!;
-      final result = await ref
-          .read(mealAnalysisRepositoryProvider)
-          .analyze(userId: user.id, imageBytes: bytes, filename: _filename);
+      final repository = ref.read(mealAnalysisRepositoryProvider);
+      var expired = false;
+      final request = repository.analyze(
+        userId: user.id,
+        imageBytes: bytes,
+        filename: _filename,
+      );
+      unawaited(
+        request.then<void>((result) {
+          if (expired || !mounted) {
+            unawaited(repository.discardPhoto(result.photoPath));
+          }
+        }, onError: (Object error, StackTrace stack) {}),
+      );
+      final MealAnalysisResult result;
+      try {
+        result = await runPhotoAnalysis(
+          request,
+          onSlow: () {
+            if (mounted) setState(() => _takingLong = true);
+          },
+        );
+      } on TimeoutException {
+        expired = true;
+        rethrow;
+      }
       if (!mounted) {
+        unawaited(repository.discardPhoto(result.photoPath));
         return;
       }
       setState(() {
         _foods = result.foods;
         _photoPath = result.photoPath;
+        if (result.foods.isNotEmpty) {
+          _recognitionFailures = 0;
+          _responseFailures = 0;
+          _lastFailureReason = null;
+        }
+        if (result.foods.isEmpty) {
+          _error = _failureMessage(result.failure ?? PhotoFailure.unknown);
+        }
       });
     } catch (error) {
       if (mounted) {
-        setState(() => _error = 'AI 분석에 실패했어요. 직접 입력을 이용해 주세요. ($error)');
+        final reason = error is PhotoAnalysisException
+            ? error.reason
+            : error is TimeoutException
+            ? PhotoFailure.timeout
+            : null;
+        setState(
+          () => _error = reason != null
+              ? _failureMessage(reason)
+              : error is StateError
+              ? error.message.toString()
+              : _failureMessage(PhotoFailure.unknown),
+        );
       }
     } finally {
-      if (mounted) setState(() => _analyzing = false);
+      if (mounted) {
+        setState(() {
+          _analyzing = false;
+          _takingLong = false;
+        });
+      }
     }
   }
 
@@ -137,7 +215,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
               ListTile(
                 title: Text(food.name),
                 subtitle: Text(
-                  '${food.amountG.round()}g · ${food.nutrition.forAmount(food.amountG).energyKcal.round()} kcal',
+                  '${food.amountG.round()}g · ${food.consumedNutrition.energyKcal.round()} kcal',
                 ),
                 onTap: () => Navigator.pop(context, food),
               ),
@@ -171,7 +249,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
     final user = ref.read(authRepositoryProvider).currentUser!;
     final total = _foods.fold<double>(
       0,
-      (sum, food) => sum + food.nutrition.forAmount(food.amountG).energyKcal,
+      (sum, food) => sum + food.consumedNutrition.energyKcal,
     );
     final record = HealthRecord(
       id: 'meal-${DateTime.now().microsecondsSinceEpoch}',
@@ -210,7 +288,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   Widget build(BuildContext context) {
     final totalKcal = _foods.fold<double>(
       0,
-      (sum, food) => sum + food.nutrition.forAmount(food.amountG).energyKcal,
+      (sum, food) => sum + food.consumedNutrition.energyKcal,
     );
     return Scaffold(
       appBar: AppBar(title: const Text('음식 사진 기록')),
@@ -251,6 +329,19 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
                 ),
               ],
             ),
+          if (_imageBytes != null && !_analyzing)
+            Row(
+              children: [
+                TextButton(
+                  onPressed: () => _pick(ImageSource.camera),
+                  child: const Text('다시 촬영'),
+                ),
+                TextButton(
+                  onPressed: () => _pick(ImageSource.gallery),
+                  child: const Text('다른 사진 선택'),
+                ),
+              ],
+            ),
           if (_foods.isEmpty) ...[
             const SizedBox(height: 12),
             TextButton(
@@ -264,13 +355,17 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
             ),
           ],
           if (_analyzing)
-            const Padding(
-              padding: EdgeInsets.all(28),
+            Padding(
+              padding: const EdgeInsets.all(28),
               child: Column(
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 12),
-                  Text('음식을 분석하고 있어요...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text(
+                    _takingLong
+                        ? '분석이 지연되고 있어요. 조금 더 기다려 주세요.'
+                        : '음식을 분석하고 있어요...',
+                  ),
                 ],
               ),
             ),
@@ -280,8 +375,13 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
               child: MaterialBanner(
                 content: Text(_error!),
                 actions: [
+                  if (_imageBytes != null)
+                    TextButton(
+                      onPressed: _analyzing ? null : _analyze,
+                      child: const Text('다시 분석'),
+                    ),
                   TextButton(
-                    onPressed: _searchAndAdd,
+                    onPressed: () => context.push('/record/meal'),
                     child: const Text('직접 입력'),
                   ),
                 ],
@@ -357,7 +457,9 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
           : SafeArea(
               minimum: const EdgeInsets.all(20),
               child: FilledButton(
-                onPressed: ref.watch(recordsProvider).isLoading ? null : _save,
+                onPressed: _analyzing || ref.watch(recordsProvider).isLoading
+                    ? null
+                    : _save,
                 child: const Text('식사 저장'),
               ),
             ),
@@ -425,7 +527,7 @@ class _FoodCard extends StatelessWidget {
                       Text(
                         food.tags.contains('열량미기록')
                             ? '열량 미기록'
-                            : '${food.nutrition.forAmount(food.amountG).energyKcal.round()} kcal · 인식 ${(food.confidence * 100).round()}%',
+                            : '${food.consumedNutrition.energyKcal.round()} kcal · 인식 ${(food.confidence * 100).round()}%',
                         style: const TextStyle(color: AppColors.muted),
                       ),
                       if (food.tags.isNotEmpty)
@@ -457,6 +559,8 @@ class _FoodCard extends StatelessWidget {
             ),
             if (!food.tags.contains('열량미기록'))
               FoodPortionControl(food: food, onChanged: onChanged),
+            if (food.isProduct)
+              ProductQuantityControl(food: food, onChanged: onChanged),
           ],
         ),
       ),

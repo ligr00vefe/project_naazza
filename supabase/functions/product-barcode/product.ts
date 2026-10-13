@@ -50,10 +50,11 @@ export function productCandidate(product: Product) {
   // Missing fields must not silently become zero nutrition in saved meals.
   if ([energy, carbohydrate, protein, fat, sodium].some(value => value === null)) return null
   const serving = number(product.serving_quantity)
-  const amountG = product.serving_quantity_unit === 'g' && serving && serving <= 3000 ? serving : 100
+  const whole = number(product.product_quantity)
+  const amountG = product.product_quantity_unit === 'g' && whole && whole <= 3000 ? whole : product.serving_quantity_unit === 'g' && serving && serving <= 3000 ? serving : 100
   const brand = typeof product.brands === 'string' ? product.brands.trim().slice(0, 30) : ''
   return {
-    displayName: name, normalizedName: name, confidence: 1, amountG,
+    displayName: name, normalizedName: name, confidence: 1, amountG, isProduct: true,
     tags: ['제품 영양표', ...(brand ? [brand] : [])],
     nutrition: {
       baseAmountG: 100, energyKcal: energy, carbohydrateG: carbohydrate,

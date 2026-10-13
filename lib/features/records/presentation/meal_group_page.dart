@@ -146,8 +146,11 @@ String _itemDescription(Map item) {
           base <= 0
       ? null
       : energy * amount / base;
-  final portion = item['portioned'] == true
-      ? '소분 ${item['amount_g']}g / 전체 ${item['total_amount_g']}g · '
+  final count = item['is_product'] == true
+      ? '${item['quantity'] ?? 1}개 · '
       : '';
-  return '${item['name'] ?? '음식'} · $portion${amount == null ? '섭취량 미기록' : '${amount.round()}g'} · ${scaled == null ? '열량 미기록' : '${scaled.round()} kcal'}';
+  final portion = item['portioned'] == true
+      ? '소분 ${item['unit_amount_g'] ?? item['amount_g']}g / 전체 ${item['total_amount_g']}g · '
+      : '';
+  return '${item['name'] ?? '음식'} · $count$portion${amount == null ? '섭취량 미기록' : '${amount.round()}g'} · ${scaled == null ? '열량 미기록' : '${scaled.round()} kcal'}';
 }

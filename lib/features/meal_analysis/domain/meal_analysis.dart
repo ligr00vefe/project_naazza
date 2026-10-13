@@ -1,3 +1,5 @@
+import 'photo_failure.dart';
+
 class FoodCandidate {
   const FoodCandidate({
     required this.name,
@@ -6,6 +8,8 @@ class FoodCandidate {
     required this.tags,
     required this.nutrition,
     this.amountG = 100,
+    this.isProduct = false,
+    this.quantity = 1,
     this.portioned = false,
     this.totalAmountG,
   });
@@ -16,6 +20,10 @@ class FoodCandidate {
   final List<String> tags;
   final NutritionFacts nutrition;
   final double amountG;
+  final bool isProduct;
+  final int quantity;
+  double get consumedAmountG => amountG * (isProduct ? quantity : 1);
+  NutritionFacts get consumedNutrition => nutrition.forAmount(consumedAmountG);
   final bool portioned;
   final double? totalAmountG;
   double get wholeAmountG => totalAmountG ?? amountG;
@@ -28,6 +36,8 @@ class FoodCandidate {
     List<String>? tags,
     NutritionFacts? nutrition,
     double? amountG,
+    bool? isProduct,
+    int? quantity,
     bool? portioned,
     double? totalAmountG,
   }) => FoodCandidate(
@@ -37,6 +47,8 @@ class FoodCandidate {
     tags: tags ?? this.tags,
     nutrition: nutrition ?? this.nutrition,
     amountG: amountG ?? this.amountG,
+    isProduct: isProduct ?? this.isProduct,
+    quantity: quantity ?? this.quantity,
     portioned: portioned ?? this.portioned,
     totalAmountG: totalAmountG ?? this.totalAmountG,
   );
@@ -74,7 +86,10 @@ class FoodCandidate {
   Map<String, Object?> toRecordItem({String? sourceType}) => {
     'name': name,
     'normalized_name': normalizedName,
-    'amount_g': amountG,
+    'amount_g': consumedAmountG,
+    'unit_amount_g': amountG,
+    'is_product': isProduct,
+    'quantity': isProduct ? quantity : 1,
     'tags': tags,
     'confidence': confidence,
     'nutrition_known': !tags.contains('열량미기록'),
@@ -124,7 +139,12 @@ class NutritionFacts {
 }
 
 class MealAnalysisResult {
-  const MealAnalysisResult({required this.photoPath, required this.foods});
+  const MealAnalysisResult({
+    required this.photoPath,
+    required this.foods,
+    this.failure,
+  });
+  final PhotoFailure? failure;
   final String? photoPath;
   final List<FoodCandidate> foods;
 }

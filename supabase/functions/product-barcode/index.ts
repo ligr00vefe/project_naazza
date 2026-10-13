@@ -30,7 +30,7 @@ Deno.serve(async (request: Request) => {
   const barcode = normalizeBarcode(body?.barcode)
   if (!barcode) return json(400, { error: 'invalid_barcode' })
   try {
-    const fields = 'product_name_ko,product_name,brands,nutriments,serving_quantity,serving_quantity_unit'
+    const fields = 'product_name_ko,product_name,brands,nutriments,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit'
     const result = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=${fields}`, {
       headers: { 'User-Agent': 'NAAZZA/1.0 (food diary; barcode lookup)' },
       signal: AbortSignal.timeout(10000),

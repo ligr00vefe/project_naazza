@@ -49,7 +49,10 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
         (_enabled && amount > total)) {
       return null;
     }
-    final result = calories * (amount / total);
+    final result =
+        calories *
+        (amount / total) *
+        (widget.food.isProduct ? widget.food.quantity : 1);
     return result.isFinite ? result : null;
   }
 
@@ -101,10 +104,14 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
             if (_enabled) ...[
               const Text('포장 전체 용량과 열량을 확인한 뒤 먹은 양을 입력해 주세요.'),
               const SizedBox(height: 16),
-              _field(_total, '전체 용량', 'g'),
-              _field(_calories, '전체 열량', 'kcal'),
+              _field(_total, widget.food.isProduct ? '1개 전체 용량' : '전체 용량', 'g'),
+              _field(
+                _calories,
+                widget.food.isProduct ? '1개 전체 열량' : '전체 열량',
+                'kcal',
+              ),
             ],
-            _field(_consumed, '먹은 양', 'g'),
+            _field(_consumed, widget.food.isProduct ? '1개당 먹은 양' : '먹은 양', 'g'),
             Text(
               _preview == null
                   ? '입력값을 확인해 주세요.'
@@ -171,5 +178,39 @@ class FoodPortionControl extends StatelessWidget {
             child: const Text('수정'),
           )
         : null,
+  );
+}
+
+class ProductQuantityControl extends StatelessWidget {
+  const ProductQuantityControl({
+    super.key,
+    required this.food,
+    required this.onChanged,
+  });
+  final FoodCandidate food;
+  final ValueChanged<FoodCandidate> onChanged;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        const Expanded(child: Text('상품 개수')),
+        IconButton(
+          tooltip: '개수 줄이기',
+          onPressed: food.quantity > 1
+              ? () => onChanged(food.copyWith(quantity: food.quantity - 1))
+              : null,
+          icon: const Icon(Icons.remove),
+        ),
+        Text('${food.quantity}개'),
+        IconButton(
+          tooltip: '개수 늘리기',
+          onPressed: food.quantity < 99
+              ? () => onChanged(food.copyWith(quantity: food.quantity + 1))
+              : null,
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    ),
   );
 }
