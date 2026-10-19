@@ -31,6 +31,14 @@ void main() {
     );
     expect(find.text('계산한 구간 7회'), findsOneWidget);
     expect(find.text('평균 24시간 0분'), findsOneWidget);
+    final tooltip = '${now.month}/2 · 24시간 0분 · 1구간';
+    await tester.tap(
+      find.byWidgetPredicate((w) => w is Tooltip && w.message == tooltip),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text(tooltip), findsOneWidget);
+    Tooltip.dismissAllToolTips();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('연도별'));
     await tester.pumpAndSettle();
     expect(find.text('계산한 구간 7회'), findsOneWidget);

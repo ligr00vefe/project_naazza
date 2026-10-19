@@ -1,3 +1,4 @@
+import 'app_design.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
@@ -19,16 +20,70 @@ abstract final class AppTheme {
       textTheme: base.textTheme
           .apply(bodyColor: AppColors.text, displayColor: AppColors.text)
           .copyWith(
-            headlineMedium: base.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              height: 1.3,
-            ),
-            titleLarge: base.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-            bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.55),
-            bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.5),
+            displayLarge: AppDesign.metric.copyWith(fontSize: 28),
+            displayMedium: AppDesign.metric.copyWith(fontSize: 26),
+            displaySmall: AppDesign.metric.copyWith(fontSize: 24),
+            headlineLarge: AppDesign.metric,
+            headlineMedium: AppDesign.pageTitle,
+            headlineSmall: AppDesign.pageTitle,
+            titleLarge: AppDesign.sectionTitle,
+            titleMedium: AppDesign.body.copyWith(fontWeight: FontWeight.w600),
+            titleSmall: AppDesign.body.copyWith(fontWeight: FontWeight.w600),
+            bodyLarge: AppDesign.body.copyWith(fontSize: 14),
+            bodyMedium: AppDesign.body,
+            bodySmall: AppDesign.caption,
+            labelLarge: AppDesign.body.copyWith(fontWeight: FontWeight.w600),
+            labelMedium: AppDesign.caption,
+            labelSmall: AppDesign.caption.copyWith(fontSize: 11),
           ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleTextStyle: AppDesign.pageTitle,
+        iconTheme: IconThemeData(size: 21, color: AppColors.primary),
+      ),
+      listTileTheme: const ListTileThemeData(
+        titleTextStyle: AppDesign.body,
+        subtitleTextStyle: AppDesign.caption,
+        iconColor: AppColors.primary,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      ),
+      chipTheme: ChipThemeData(
+        labelStyle: AppDesign.caption.copyWith(color: AppColors.text),
+        backgroundColor: Colors.white,
+        selectedColor: const Color(0xFFEAF2E5),
+        side: const BorderSide(color: AppColors.outline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 68,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: const Color(0xFFE8F1E2),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => AppDesign.caption.copyWith(
+            fontSize: 11,
+            color: states.contains(WidgetState.selected)
+                ? AppColors.primary
+                : AppColors.muted,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w400,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            size: 22,
+            color: states.contains(WidgetState.selected)
+                ? AppColors.primary
+                : AppColors.muted,
+          ),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
@@ -44,11 +99,11 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(56),
+          minimumSize: const Size.fromHeight(50),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       cardTheme: CardThemeData(
@@ -56,7 +111,7 @@ abstract final class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(AppDesign.radius),
           side: const BorderSide(color: AppColors.outline),
         ),
       ),

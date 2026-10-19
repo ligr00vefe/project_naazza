@@ -64,6 +64,8 @@ void main() {
     final repository = DemoRecordsRepository();
     final router = await openPage(tester, repository);
     addTearDown(router.dispose);
+    await tester.ensureVisible(find.byKey(const ValueKey('bowel-form-4')));
+    await tester.pumpAndSettle();
     final semantics = tester.ensureSemantics();
     expect(
       tester.getSemantics(find.bySemanticsLabel('4번, 매끈하고 부드러움')),

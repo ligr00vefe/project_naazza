@@ -225,7 +225,7 @@ void main() {
     );
     final router = await open(tester, repo, location: '/insights', scale: 1.6);
     addTearDown(router.dispose);
-    expect(find.text('살펴봐요'), findsOneWidget);
+    expect(find.text('살펴봐요.'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

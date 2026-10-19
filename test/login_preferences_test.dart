@@ -112,7 +112,7 @@ void main() {
       expect(fields[1].controller!.text, '');
       expect(
         tester
-            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .widgetList<Checkbox>(find.byType(Checkbox))
             .every((w) => w.value == true),
         true,
       );

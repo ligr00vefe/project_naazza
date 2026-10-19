@@ -1,3 +1,7 @@
+import '../../../app/theme/app_colors.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/word_wrap_text.dart';
+import '../../../app/theme/app_design.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../records/domain/health_record.dart';
@@ -50,13 +54,14 @@ class _FastingInsightCardState extends State<FastingInsightCard> {
       1,
       (value, bar) => math.max(value, bar.hours ?? 0),
     );
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppDesign.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('기록 기준 공복 시간', style: Theme.of(context).textTheme.titleLarge),
+            const AppSectionHeader('기록 기준 공복 시간'),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -106,30 +111,76 @@ class _FastingInsightCardState extends State<FastingInsightCard> {
                   : '평균 ${fastingDuration(summary.averageHours!)}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            Text('계산한 구간 ${summary.count}회'),
+            Text('계산한 구간 ${summary.count}회', style: AppDesign.caption),
             const SizedBox(height: 8),
-            const Text('연속된 이틀의 마지막 식사·간식과 다음 날 첫 기록 사이예요. 빠진 날은 제외해요.'),
+            const WordWrapText(
+              '연속된 이틀의 마지막 식사·간식과 다음 날 첫 기록 사이예요. 빠진 날은 제외해요.',
+              style: AppDesign.caption,
+            ),
             const SizedBox(height: 12),
-            for (final bar in bars)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${bar.label} · ${bar.hours == null ? '기록 없음' : fastingDuration(bar.hours!)}${_yearly && bar.count > 0 ? ' · ${bar.count}회' : ''}',
-                    ),
-                    const SizedBox(height: 4),
-                    LinearProgressIndicator(
-                      value: bar.hours == null ? 0 : bar.hours! / maxHours,
-                      minHeight: 8,
-                    ),
-                  ],
-                ),
-              ),
+            if (bars.isNotEmpty) _FastingChart(bars: bars, maxHours: maxHours),
           ],
         ),
       ),
     );
   }
+}
+
+class _FastingChart extends StatelessWidget {
+  const _FastingChart({required this.bars, required this.maxHours});
+  final List<({String label, double? hours, int count})> bars;
+  final double maxHours;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      SizedBox(
+        height: 110,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final bar in bars)
+              Expanded(
+                child: Semantics(
+                  label:
+                      '${bar.label}, ${bar.hours == null ? '기록 없음' : fastingDuration(bar.hours!)}, ${bar.count}구간',
+                  child: Tooltip(
+                    triggerMode: TooltipTriggerMode.tap,
+                    message:
+                        '${bar.label} · ${bar.hours == null ? '기록 없음' : fastingDuration(bar.hours!)} · ${bar.count}구간',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Container(
+                        height: bar.hours == null
+                            ? 3
+                            : math.max(4, 110 * bar.hours! / maxHours),
+                        decoration: BoxDecoration(
+                          color: bar.hours == null
+                              ? AppColors.outline
+                              : AppColors.primary,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(child: Text(bars.first.label, style: AppDesign.caption)),
+          Text(bars.last.label, style: AppDesign.caption),
+        ],
+      ),
+      const SizedBox(height: 6),
+      const WordWrapText('막대를 누르면 구간별 시간을 볼 수 있어요.', style: AppDesign.caption),
+      if (bars.any((bar) => bar.hours == null))
+        const Text('회색: 기록 없음', style: AppDesign.caption),
+    ],
+  );
 }

@@ -48,7 +48,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('나의 기록이 내일의 변화를 만들어요'), findsOneWidget);
+    expect(find.text('오늘도 가볍게 기록해요'), findsOneWidget);
     await tester.enterText(find.byType(TextField).at(0), 'demo_user');
     await tester.enterText(find.byType(TextField).at(1), '1234');
     FocusManager.instance.primaryFocus?.unfocus();
@@ -56,16 +56,18 @@ void main() {
     await tester.ensureVisible(find.text('로그인'));
     await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
-    expect(find.text('1. 관리 목표를 선택해 주세요'), findsOneWidget);
+    expect(find.text('어떤 목표로 기록할까요?'), findsOneWidget);
     await tester.tap(find.text('장 컨디션 관리'));
     await tester.pump();
+    await tester.tap(find.text('다음'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('배변'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('배변'), findsOneWidget);
-    final saveButton = find.widgetWithText(FilledButton, '설정 완료하고 시작하기');
+    final saveButton = find.widgetWithText(FilledButton, '시작하기');
     expect(tester.widget<FilledButton>(saveButton).onPressed, isNotNull);
     await tester.tap(saveButton);
     await tester.pump(const Duration(milliseconds: 400));

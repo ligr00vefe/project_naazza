@@ -1,6 +1,7 @@
 import 'fasting_insight_card.dart';
 import '../../../core/widgets/word_wrap_text.dart';
-import '../../../core/widgets/main_navigation_bar.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../app/theme/app_design.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +19,10 @@ class InsightsPage extends ConsumerStatefulWidget {
 class _InsightsPageState extends ConsumerState<InsightsPage> {
   int _days = 30;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('인사이트')),
+  Widget build(BuildContext context) => AppPage(
+    title: '인사이트',
+    subtitle: '기록을 바탕으로 나의 패턴을 살펴봐요.',
+    selectedIndex: 3,
     body: ref
         .watch(recordsProvider)
         .when(
@@ -27,14 +30,11 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
           error: (error, _) => Center(child: Text('기록을 불러오지 못했어요.\n$error')),
           data: (records) {
             final summary = InsightSummary.fromRecords(records, days: _days);
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            return AppPageList(
               children: [
-                WordWrapText(
-                  '기록을 바탕으로 나의 패턴을 살펴봐요 🌱',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 18),
+                FastingInsightCard(records: records),
+                const SizedBox(height: AppDesign.sectionGap),
+                const AppSectionHeader('기간별 기록'),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -48,8 +48,6 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                FastingInsightCard(records: records),
-                const SizedBox(height: 14),
                 if (summary.totalRecords == 0)
                   _EmptyInsight(onRecord: () => context.push('/record'))
                 else ...[
@@ -62,20 +60,23 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
                   _ObservationCard(summary: summary),
                 ],
                 const SizedBox(height: 14),
-                const Card(
-                  color: Color(0xFFFFFAEB),
+                const AppCard(
+                  padding: EdgeInsets.zero,
+                  color: Color(0xFFF1F5ED),
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Row(
                       children: [
                         Icon(
                           Icons.lightbulb_outline_rounded,
-                          color: Colors.orange,
+                          color: AppColors.muted,
+                          size: 18,
                         ),
                         SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            '이 결과는 기록에서 함께 나타난 경향이며 의학적 진단이나 인과관계를 의미하지 않아요.',
+                          child: WordWrapText(
+                            '기록에서 함께 나타난 경향이며, 의학적 진단을 의미하지 않아요.',
+                            style: AppDesign.caption,
                           ),
                         ),
                       ],
@@ -86,7 +87,6 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
             );
           },
         ),
-    bottomNavigationBar: const MainNavigationBar(selectedIndex: 3),
   );
 }
 
@@ -136,20 +136,16 @@ class _MetricCard extends StatelessWidget {
   final String label, value;
   final Color color;
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => AppCard(
+    padding: EdgeInsets.zero,
     child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: AppDesign.cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.muted)),
+          WordWrapText(label, style: AppDesign.caption),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(color: color),
-          ),
+          Text(value, style: AppDesign.metric.copyWith(color: color)),
         ],
       ),
     ),
@@ -160,13 +156,14 @@ class _ActivityCard extends StatelessWidget {
   const _ActivityCard({required this.summary});
   final InsightSummary summary;
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => AppCard(
+    padding: EdgeInsets.zero,
     child: Padding(
-      padding: const EdgeInsets.all(18),
+      padding: AppDesign.cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('기록 횟수', style: Theme.of(context).textTheme.titleLarge),
+          AppSectionHeader('기록 횟수'),
           const SizedBox(height: 6),
           Text(
             '${summary.days}일 동안 ${summary.totalRecords}개의 기록',
@@ -192,13 +189,14 @@ class _PatternCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final symptom = summary.topSymptoms.entries.firstOrNull;
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: AppDesign.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('기록 요약', style: Theme.of(context).textTheme.titleLarge),
+            AppSectionHeader('기록 요약'),
             const SizedBox(height: 14),
             _PatternRow(
               icon: Icons.health_and_safety_outlined,
@@ -237,31 +235,28 @@ class _PatternRow extends StatelessWidget {
   final IconData icon;
   final String label, value;
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: CircleAvatar(
-      backgroundColor: const Color(0xFFEAF6F0),
-      child: Icon(icon, color: AppColors.primary),
-    ),
-    title: Text(label),
-    subtitle: Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-  );
+  Widget build(BuildContext context) =>
+      AppListRow(title: label, subtitle: value, icon: icon);
 }
 
 class _ObservationCard extends StatelessWidget {
   const _ObservationCard({required this.summary});
   final InsightSummary summary;
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => AppCard(
+    padding: EdgeInsets.zero,
     child: Padding(
-      padding: const EdgeInsets.all(18),
+      padding: AppDesign.cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('나짜의 관찰', style: Theme.of(context).textTheme.titleLarge),
+          AppSectionHeader('나짜의 관찰'),
           const SizedBox(height: 12),
           if (summary.observations.isEmpty)
-            const Text('패턴을 보여드리려면 같은 항목을 3회 이상 기록해 주세요.')
+            const WordWrapText(
+              '패턴을 보려면 같은 항목을 3회 이상 기록해 주세요.',
+              style: AppDesign.caption,
+            )
           else
             for (final item in summary.observations)
               Padding(
@@ -275,7 +270,7 @@ class _ObservationCard extends StatelessWidget {
                       color: AppColors.primary,
                     ),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(item)),
+                    Expanded(child: WordWrapText(item, style: AppDesign.body)),
                   ],
                 ),
               ),
@@ -289,22 +284,23 @@ class _EmptyInsight extends StatelessWidget {
   const _EmptyInsight({required this.onRecord});
   final VoidCallback onRecord;
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => AppCard(
+    padding: EdgeInsets.zero,
     child: Padding(
       padding: const EdgeInsets.all(28),
       child: Column(
         children: [
           const Icon(
             Icons.insights_rounded,
-            size: 54,
+            size: 36,
             color: AppColors.primary,
           ),
           const SizedBox(height: 14),
-          Text('아직 분석할 기록이 없어요', style: Theme.of(context).textTheme.titleLarge),
+          const WordWrapText('아직 분석할 기록이 없어요', style: AppDesign.sectionTitle),
           const SizedBox(height: 8),
-          const Text(
+          const WordWrapText(
             '식사·증상·배변 기록을 남기면 기간별 패턴을 확인할 수 있어요.',
-            textAlign: TextAlign.center,
+            style: AppDesign.caption,
           ),
           const SizedBox(height: 18),
           FilledButton(onPressed: onRecord, child: const Text('첫 기록 남기기')),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/widgets/main_navigation_bar.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../core/widgets/word_wrap_text.dart';
+import '../../../app/theme/app_design.dart';
 import '../domain/health_record.dart';
 import '../domain/meal_group.dart';
 import '../domain/record_labels.dart';
@@ -125,27 +127,26 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
             selected,
           ).where((g) => _category == null || g.category == _category).toList()
           ..sort(compareMealGroups);
-    return Scaffold(
-      bottomNavigationBar: const MainNavigationBar(selectedIndex: 1),
-      appBar: AppBar(
-        title: const Text('기록 캘린더'),
-        actions: [
-          TextButton(
-            onPressed: () => context.go('/timeline'),
-            child: const Text('타임라인'),
-          ),
-        ],
-      ),
+    return AppPage(
+      title: '기록 캘린더',
+      subtitle: '날짜별 식사와 컨디션을 함께 살펴봐요.',
+      selectedIndex: 1,
+      actions: [
+        TextButton(
+          onPressed: () => context.go('/timeline'),
+          child: const Text('타임라인'),
+        ),
+      ],
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : state.hasError
           ? const Center(child: Text('기록을 불러오지 못했어요.'))
-          : ListView(
-              padding: const EdgeInsets.all(16),
+          : AppPageList(
               children: [
-                Card(
+                AppCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: AppDesign.cardPadding,
                     child: Column(
                       children: [
                         Row(
@@ -164,6 +165,7 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                               child: Text(
                                 '${_month.year}년 ${_month.month}월',
                                 textAlign: TextAlign.center,
+                                style: AppDesign.sectionTitle,
                               ),
                             ),
                             IconButton(
@@ -204,30 +206,26 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                         _monthGrid(records),
                         const SizedBox(height: 8),
                         Wrap(
-                          spacing: 12,
+                          spacing: 10,
                           runSpacing: 6,
                           children: [
-                            const Text('● 식사'),
-                            if (_showBowel) const Text('● 배변'),
+                            const _CalendarLegend('식사', Colors.green),
+                            if (_showBowel)
+                              const _CalendarLegend('배변', Colors.orange),
                             if (_showVisits)
-                              const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.local_hospital, size: 16),
-                                  SizedBox(width: 4),
-                                  Text('검진·방문'),
-                                ],
+                              const _CalendarLegend(
+                                '검진·방문',
+                                Colors.blue,
+                                icon: Icons.local_hospital_outlined,
                               ),
                             if (_showAlcohol)
-                              const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.sports_bar, size: 16),
-                                  SizedBox(width: 4),
-                                  Text('음주'),
-                                ],
+                              const _CalendarLegend(
+                                '음주',
+                                Colors.amber,
+                                icon: Icons.sports_bar_outlined,
                               ),
-                            if (_showCondition) const Text('● 컨디션'),
+                            if (_showCondition)
+                              const _CalendarLegend('컨디션', Colors.purple),
                           ],
                         ),
                       ],
@@ -235,10 +233,7 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  '${_selected.month}월 ${_selected.day}일',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                AppSectionHeader('${_selected.month}월 ${_selected.day}일'),
                 const SizedBox(height: 20),
                 _heading('식사 기록'),
                 Padding(
@@ -247,22 +242,20 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                     '총 ${meals.fold<double>(0, (sum, g) => sum + g.calories).round()} kcal',
                   ),
                 ),
-                if (meals.isEmpty) const Text('선택한 끼니의 기록이 없어요.'),
+                if (meals.isEmpty)
+                  const WordWrapText(
+                    '선택한 끼니의 기록이 없어요.',
+                    style: AppDesign.caption,
+                  ),
                 for (final group in meals)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Card(
-                      child: ListTile(
-                        title: Text(
+                    child: AppRecordTile(
+                      title:
                           '${group.category.label} · ${compactMealNames(group)}',
-                        ),
-                        subtitle: Text(
+                      subtitle:
                           '${recordTime(group.records.first.recordedAt)} · 총 ${group.calories.round()} kcal',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () =>
-                            context.push('/timeline/meal', extra: group),
-                      ),
+                      onTap: () => context.push('/timeline/meal', extra: group),
                     ),
                   ),
                 if (_showBowel) ...[
@@ -288,45 +281,44 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
   }
 
   Widget _heading(String text) => Padding(
-    padding: const EdgeInsets.only(top: 12, bottom: 12),
-    child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+    padding: const EdgeInsets.only(top: 12),
+    child: AppSectionHeader(text),
   );
   List<Widget> _recordList(List<HealthRecord> selected, HealthRecordType type) {
     final records = selected.where((r) => r.type == type).toList();
     if (records.isEmpty) {
-      return [const Text('기록이 없어요.'), const SizedBox(height: 12)];
+      return [
+        const Text('기록이 없어요.', style: AppDesign.caption),
+        const SizedBox(height: 12),
+      ];
     }
     return [
       for (final record in records)
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Card(
-            child: ListTile(
-              title: Text(switch (type) {
-                HealthRecordType.bowel => compactBowel(record),
-                HealthRecordType.condition => compactCondition(record),
-                HealthRecordType.alcohol => record.title,
-                _ =>
-                  record.data['facility_label']?.toString().isNotEmpty == true
-                      ? record.data['facility_label'].toString()
-                      : '기관 미기록',
-              }),
-              subtitle: Text(
-                type == HealthRecordType.visit
-                    ? [
-                        recordTime(record.recordedAt),
-                        if (record.data['department']?.toString().isNotEmpty ==
-                            true)
-                          record.data['department'].toString(),
-                        visitCategory(record.data['visit_type']),
-                      ].join(' · ')
-                    : record.type == HealthRecordType.alcohol
-                    ? '${recordTime(record.recordedAt)} · ${record.summary}'
-                    : recordTime(record.recordedAt),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/records/detail', extra: record),
-            ),
+          child: AppRecordTile(
+            title: switch (type) {
+              HealthRecordType.bowel => compactBowel(record),
+              HealthRecordType.condition => compactCondition(record),
+              HealthRecordType.alcohol => record.title,
+              _ =>
+                record.data['facility_label']?.toString().isNotEmpty == true
+                    ? record.data['facility_label'].toString()
+                    : '기관 미기록',
+            },
+            subtitle: type == HealthRecordType.visit
+                ? [
+                    recordTime(record.recordedAt),
+                    if (record.data['department']?.toString().isNotEmpty ==
+                        true)
+                      record.data['department'].toString(),
+                    visitCategory(record.data['visit_type']),
+                  ].join(' · ')
+                : record.type == HealthRecordType.alcohol
+                ? '${recordTime(record.recordedAt)} · ${record.summary}'
+                : recordTime(record.recordedAt),
+
+            onTap: () => context.push('/records/detail', extra: record),
           ),
         ),
     ];
@@ -342,7 +334,7 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
-        mainAxisExtent: scale * 1.6 + 36,
+        mainAxisExtent: (scale * 1.6 + 24).clamp(44, double.infinity),
       ),
       itemCount: count,
       itemBuilder: (context, index) {
@@ -392,7 +384,7 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                   Text(
                     '$day',
                     softWrap: false,
-                    style: const TextStyle(fontSize: 14),
+                    style: const TextStyle(fontSize: 13),
                   ),
                   const SizedBox(height: 4),
                   Wrap(
@@ -430,4 +422,27 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
       },
     );
   }
+}
+
+class _CalendarLegend extends StatelessWidget {
+  const _CalendarLegend(this.label, this.color, {this.icon});
+  final String label;
+  final Color color;
+  final IconData? icon;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (icon != null)
+        Icon(icon, size: 13, color: color)
+      else
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+      const SizedBox(width: 4),
+      Text(label, style: AppDesign.caption.copyWith(fontSize: 11)),
+    ],
+  );
 }

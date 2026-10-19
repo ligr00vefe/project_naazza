@@ -2,7 +2,7 @@ import '../data/login_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../app/theme/app_colors.dart';
+import 'login_brand_mark.dart';
 import '../../../core/config/app_config.dart';
 import '../domain/auth_failure.dart';
 import 'auth_controller.dart';
@@ -98,153 +98,371 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final isDemo = !ref.watch(appConfigProvider).hasSupabaseConfiguration;
+    final enabled = _settingsReady && !authState.isLoading;
+    const green = Color(0xFF386344);
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(
-                    Icons.eco_rounded,
-                    size: 66,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'NAAZZA',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
+      backgroundColor: const Color(0xFFF4F8F1),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFEAF4E7), Color(0xFFF8FAF6), Color(0xFFFAF9F5)],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxHeight < 700;
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 20,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: (constraints.maxHeight - 40).clamp(
+                      0,
+                      double.infinity,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _isSignUp ? '사용할 아이디와 비밀번호를 정해 줘' : '나의 기록이 내일의 변화를 만들어요',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.muted, height: 1.5),
-                  ),
-                  const SizedBox(height: 32),
-                  TextField(
-                    controller: _username,
-                    enabled: _settingsReady && !authState.isLoading,
-                    autocorrect: false,
-                    textCapitalization: TextCapitalization.none,
-                    textInputAction: TextInputAction.next,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'[a-zA-Z0-9_]'),
-                      ),
-                      LengthLimitingTextInputFormatter(20),
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: '아이디',
-                      helperText: '영문 소문자, 숫자, 밑줄 3~20자',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: _pin,
-                    enabled: _settingsReady && !authState.isLoading,
-                    obscureText: _obscurePin,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.done,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
-                    ],
-                    onSubmitted: (_) => _submit(),
-                    decoration: InputDecoration(
-                      labelText: '비밀번호',
-                      prefixIcon: const Icon(Icons.lock_outline_rounded),
-                      suffixIcon: IconButton(
-                        onPressed: () =>
-                            setState(() => _obscurePin = !_obscurePin),
-                        icon: Icon(
-                          _obscurePin
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('아이디 저장'),
-                    value: _rememberId,
-                    onChanged: !_settingsReady || authState.isLoading
-                        ? null
-                        : (value) async {
-                            setState(() => _rememberId = value ?? false);
-                            if (!_rememberId) {
-                              await (await ref.read(
-                                loginPreferencesProvider,
-                              )).saveUsername('', false);
-                            }
-                          },
-                  ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('자동 로그인'),
-                    subtitle: const Text('다음 실행에도 로그인 상태를 유지해요.'),
-                    value: _autoLogin,
-                    onChanged: !_settingsReady || authState.isLoading
-                        ? null
-                        : (value) =>
-                              setState(() => _autoLogin = value ?? false),
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: !_settingsReady || authState.isLoading
-                        ? null
-                        : _submit,
-                    child: authState.isLoading
-                        ? const SizedBox.square(
-                            dimension: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(_isSignUp ? '회원가입' : '로그인'),
-                  ),
-                  TextButton(
-                    onPressed: authState.isLoading
-                        ? null
-                        : () => setState(() => _isSignUp = !_isSignUp),
-                    child: Text(_isSignUp ? '이미 계정이 있어? 로그인' : '처음이야? 회원가입'),
-                  ),
-                  if (isDemo)
-                    const Card(
-                      color: Color(0xFFF0F8F4),
-                      child: Padding(
-                        padding: EdgeInsets.all(14),
-                        child: Text(
-                          '현재 데모 모드야. 아무 아이디와 비밀번호로 체험할 수 있어.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            height: 1.45,
-                            fontSize: 12,
+                  child: Center(
+                    child: SizedBox(
+                      width: 380,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              LoginBrandMark(size: compact ? 52 : 66),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'NAAZZA',
+                                style: TextStyle(
+                                  color: green,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 3,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                          SizedBox(height: compact ? 20 : 30),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _isSignUp ? '나의 기록을 시작해요' : '오늘도 가볍게 기록해요',
+                              key: const ValueKey('login-heading'),
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                fontSize: compact ? 20 : 22,
+                                height: 1.3,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF203E2A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isSignUp
+                                ? '사용할 아이디와 비밀번호를 정해 주세요'
+                                : '나의 기록이 쌓이는 곳, 나짜',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              height: 1.5,
+                              color: Color(0xFF78877C),
+                            ),
+                          ),
+                          SizedBox(height: compact ? 20 : 28),
+                          Container(
+                            key: const ValueKey('login-form-card'),
+                            padding: EdgeInsets.all(compact ? 20 : 24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x0C315337),
+                                  blurRadius: 28,
+                                  offset: Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const _FieldLabel('아이디'),
+                                const SizedBox(height: 7),
+                                TextField(
+                                  controller: _username,
+                                  enabled: enabled,
+                                  autocorrect: false,
+                                  textCapitalization: TextCapitalization.none,
+                                  textInputAction: TextInputAction.next,
+                                  style: const TextStyle(fontSize: 14),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'[a-zA-Z0-9_]'),
+                                    ),
+                                    LengthLimitingTextInputFormatter(20),
+                                  ],
+                                  decoration: _decoration(
+                                    '아이디를 입력해 주세요',
+                                    Icons.person_outline_rounded,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const _FieldLabel('비밀번호'),
+                                const SizedBox(height: 7),
+                                TextField(
+                                  controller: _pin,
+                                  enabled: enabled,
+                                  obscureText: _obscurePin,
+                                  keyboardType: TextInputType.number,
+                                  textInputAction: TextInputAction.done,
+                                  style: const TextStyle(fontSize: 14),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(4),
+                                  ],
+                                  onSubmitted: (_) => _submit(),
+                                  decoration:
+                                      _decoration(
+                                        '비밀번호를 입력해 주세요',
+                                        Icons.lock_outline_rounded,
+                                      ).copyWith(
+                                        suffixIcon: IconButton(
+                                          tooltip: _obscurePin
+                                              ? '비밀번호 보기'
+                                              : '비밀번호 숨기기',
+                                          onPressed: () => setState(
+                                            () => _obscurePin = !_obscurePin,
+                                          ),
+                                          icon: Icon(
+                                            _obscurePin
+                                                ? Icons.visibility_outlined
+                                                : Icons.visibility_off_outlined,
+                                            size: 20,
+                                          ),
+                                        ),
+                                      ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    '숫자 4자리',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF92938E),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 18,
+                                  children: [
+                                    _LoginOption(
+                                      label: '아이디 저장',
+                                      value: _rememberId,
+                                      onChanged: !enabled
+                                          ? null
+                                          : (value) async {
+                                              setState(
+                                                () => _rememberId = value,
+                                              );
+                                              if (!value) {
+                                                try {
+                                                  await (await ref.read(
+                                                    loginPreferencesProvider,
+                                                  )).saveUsername('', false);
+                                                } catch (_) {
+                                                  if (mounted) {
+                                                    _show(
+                                                      '아이디 저장 설정을 바꾸지 못했어. 다시 시도해 줘.',
+                                                    );
+                                                  }
+                                                }
+                                              }
+                                            },
+                                    ),
+                                    _LoginOption(
+                                      label: '자동 로그인',
+                                      value: _autoLogin,
+                                      onChanged: !enabled
+                                          ? null
+                                          : (value) => setState(
+                                              () => _autoLogin = value,
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                FilledButton(
+                                  key: const ValueKey('login-submit'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: green,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size.fromHeight(52),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  onPressed: enabled ? _submit : null,
+                                  child: authState.isLoading
+                                      ? const SizedBox.square(
+                                          dimension: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(_isSignUp ? '회원가입' : '로그인'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            key: const ValueKey('login-mode'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: green,
+                              minimumSize: const Size(48, 44),
+                              textStyle: const TextStyle(fontSize: 13),
+                            ),
+                            onPressed: authState.isLoading
+                                ? null
+                                : () => setState(() => _isSignUp = !_isSignUp),
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: _isSignUp
+                                        ? '이미 계정이 있나요?  '
+                                        : '처음이신가요?  ',
+                                    style: const TextStyle(
+                                      color: Color(0xFF777A77),
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: _isSignUp ? '로그인' : '회원가입',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isDemo)
+                            const Text(
+                              '데모 모드 · 아무 아이디와 비밀번호로 체험할 수 있어요.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF78877C),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                ],
-              ),
-            ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),
     );
   }
+
+  InputDecoration _decoration(String hint, IconData icon) {
+    const border = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(10)),
+      borderSide: BorderSide(color: Color(0xFFD8DCD5)),
+    );
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF969B96)),
+      prefixIcon: Icon(icon, size: 21, color: const Color(0xFF68736B)),
+      filled: false,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: const BorderSide(color: Color(0xFF386344), width: 1.5),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: const TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      color: Color(0xFF525953),
+    ),
+  );
+}
+
+class _LoginOption extends StatelessWidget {
+  const _LoginOption({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  @override
+  Widget build(BuildContext context) => MergeSemantics(
+    child: InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: value,
+                onChanged: onChanged == null
+                    ? null
+                    : (v) => onChanged!(v ?? false),
+                activeColor: const Color(0xFF386344),
+                side: const BorderSide(color: Color(0xFF929A91), width: 1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF626C64)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

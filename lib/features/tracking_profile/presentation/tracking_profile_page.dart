@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme/app_colors.dart';
+import '../../settings/presentation/accessibility_settings.dart';
 import '../domain/tracking_catalog.dart';
 import '../domain/tracking_profile.dart';
 import 'tracking_profile_controller.dart';
+
+const _green = Color(0xFF386344);
+const _muted = Color(0xFF79847B);
 
 class TrackingProfilePage extends ConsumerStatefulWidget {
   const TrackingProfilePage({super.key, this.editing = false});
@@ -16,80 +19,83 @@ class TrackingProfilePage extends ConsumerStatefulWidget {
 
 class _TrackingProfilePageState extends ConsumerState<TrackingProfilePage> {
   final _conditions = <String>{};
-  final _enabledMetrics = <String>{};
-  bool _remindersEnabled = true;
+  final _choices = <String, bool>{};
+  final _scroll = ScrollController();
+  bool _remindersEnabled = true, _initialized = false;
+  int _step = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.editing) {
-      final profile = ref.read(trackingProfileProvider).value;
-      if (profile != null) {
-        _conditions.addAll(profile.conditionKeys);
-        _enabledMetrics.addAll(
-          profile.metrics
-              .where((item) => item.enabled)
-              .map((item) => item.metricKey),
-        );
-        _remindersEnabled = profile.remindersEnabled;
+  List<String> get _recommended => _conditions.contains('custom')
+      ? TrackingCatalog.metrics.map((m) => m.key).toList()
+      : TrackingCatalog.conditions
+            .where((c) => _conditions.contains(c.key))
+            .expand((c) => c.metricKeys)
+            .toSet()
+            .toList();
+  List<String> get _visibleMetrics =>
+      {..._recommended, ..._choices.keys}.toList();
+
+  void _loadExisting(TrackingProfile? profile) {
+    if (_initialized || !widget.editing || profile == null) return;
+    _conditions.addAll(profile.conditionKeys);
+    for (final metric in profile.metrics) {
+      if (TrackingCatalog.metrics.any((m) => m.key == metric.metricKey)) {
+        _choices[metric.metricKey] = metric.enabled;
       }
+    }
+    _remindersEnabled = profile.remindersEnabled;
+    _initialized = true;
+    _seedRecommendations();
+  }
+
+  void _seedRecommendations() {
+    for (final key in _recommended) {
+      // Keep explicit OFF choices, including after goal removal/reselection.
+      _choices.putIfAbsent(key, () => !_conditions.contains('custom'));
     }
   }
 
-  List<String> get _recommendedMetricKeys {
-    final keys = <String>[];
-    for (final condition in TrackingCatalog.conditions) {
-      if (_conditions.contains(condition.key)) {
-        for (final key in condition.metricKeys) {
-          if (!keys.contains(key)) keys.add(key);
-        }
-      }
-    }
-    return keys;
-  }
+  void _toggleCondition(ConditionDefinition condition) => setState(() {
+    if (!_conditions.add(condition.key)) _conditions.remove(condition.key);
+    _seedRecommendations();
+  });
 
-  void _toggleCondition(ConditionDefinition condition) {
-    setState(() {
-      if (!_conditions.add(condition.key)) {
-        _conditions.remove(condition.key);
-      }
-      _enabledMetrics.addAll(_recommendedMetricKeys);
-    });
+  void _goTo(int step) {
+    if (ref.read(trackingProfileProvider).isLoading ||
+        (step == 1 && _conditions.isEmpty)) {
+      return;
+    }
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    setState(() => _step = step);
   }
 
   Future<void> _save() async {
-    if (_conditions.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('관리 목표를 하나 이상 선택해 주세요.')));
+    if (_conditions.isEmpty || ref.read(trackingProfileProvider).isLoading) {
       return;
     }
-    final orderedKeys = <String>[
-      ..._recommendedMetricKeys,
-      ..._enabledMetrics.where((key) => !_recommendedMetricKeys.contains(key)),
-    ];
+    final keys = _visibleMetrics;
     await ref
         .read(trackingProfileProvider.notifier)
         .save(
           TrackingProfile(
             conditionKeys: _conditions.toList(),
             metrics: [
-              for (var index = 0; index < orderedKeys.length; index++)
+              for (var i = 0; i < keys.length; i++)
                 TrackingMetricSelection(
-                  metricKey: orderedKeys[index],
-                  enabled: _enabledMetrics.contains(orderedKeys[index]),
-                  quickLogOrder: index,
+                  metricKey: keys[i],
+                  enabled: _choices[keys[i]] ?? false,
+                  quickLogOrder: i,
                 ),
             ],
             remindersEnabled: _remindersEnabled,
           ),
         );
     if (!mounted) return;
-    final error = ref.read(trackingProfileProvider).error;
-    if (error != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('설정을 저장하지 못했어요: $error')));
+    if (ref.read(trackingProfileProvider).hasError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('설정을 저장하지 못했어요. 선택한 내용은 그대로예요. 다시 시도해 주세요.'),
+        ),
+      );
     } else if (widget.editing) {
       context.pop();
     } else {
@@ -98,238 +104,464 @@ class _TrackingProfilePageState extends ConsumerState<TrackingProfilePage> {
   }
 
   @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final saveState = ref.watch(trackingProfileProvider);
-    final recommended = _recommendedMetricKeys;
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          widget.editing ? '맞춤 추적 설정' : 'NAAZZA',
-          style: const TextStyle(
-            color: AppColors.primary,
-            fontWeight: FontWeight.w800,
+    final state = ref.watch(trackingProfileProvider);
+    _loadExisting(state.value);
+    final loading = state.isLoading;
+    final reduceMotion =
+        ref.watch(reduceMotionProvider) ||
+        MediaQuery.disableAnimationsOf(context);
+    final compact = MediaQuery.sizeOf(context).height < 740;
+    return PopScope(
+      canPop: _step == 0 && !loading,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !loading && _step == 1) _goTo(0);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F9F3),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFF1F7ED),
+          surfaceTintColor: Colors.transparent,
+          toolbarHeight: 48,
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          title: const Text(
+            '맞춤 기록 설정',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF263D2B),
+            ),
           ),
+          leading: _step == 1 || widget.editing
+              ? IconButton(
+                  tooltip: '이전',
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  onPressed: loading
+                      ? null
+                      : () {
+                          if (_step == 1) {
+                            _goTo(0);
+                          } else {
+                            context.pop();
+                          }
+                        },
+                )
+              : null,
         ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F9F4),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.outline),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '나의 건강 여정을 함께해요 🌱',
-                  style: TextStyle(color: AppColors.primary),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '기록할 목표를 선택하고\n나에게 맞는 추적 항목을 설정해요',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '언제든지 설정에서 변경할 수 있어요.',
-                  style: TextStyle(color: AppColors.muted),
-                ),
-              ],
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF1F7ED), Color(0xFFFAF9F5)],
             ),
           ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: '1. 관리 목표를 선택해 주세요',
-            subtitle: '복수 선택 가능',
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final condition in TrackingCatalog.conditions)
-                  _ConditionChoice(
-                    definition: condition,
-                    selected: _conditions.contains(condition.key),
-                    onTap: () => _toggleCondition(condition),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          _SectionCard(
-            title: '2. 추적 항목을 설정해 주세요',
-            subtitle: recommended.isEmpty
-                ? '목표를 선택하면 항목을 추천해요'
-                : '${recommended.length}개 추천됨',
-            child: Column(
-              children: [
-                if (recommended.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      '선택한 목표에 맞는 항목이 여기에 표시됩니다.',
-                      style: TextStyle(color: AppColors.muted),
+          child: widget.editing && !_initialized && loading
+              ? const Center(child: CircularProgressIndicator())
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: SingleChildScrollView(
+                      controller: _scroll,
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        compact ? 8 : 20,
+                        24,
+                        12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _StepProgress(
+                            step: _step,
+                            enabled: !loading,
+                            hasGoal: _conditions.isNotEmpty,
+                            onStep: _goTo,
+                          ),
+                          SizedBox(height: compact ? 14 : 24),
+                          AnimatedSwitcher(
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 180),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                            child: TweenAnimationBuilder<double>(
+                              key: ValueKey(_step),
+                              tween: Tween(begin: 0, end: 1),
+                              duration: reduceMotion
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 280),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, value, child) => Opacity(
+                                opacity: value,
+                                child: Transform.translate(
+                                  offset: Offset(0, (1 - value) * 24),
+                                  child: child,
+                                ),
+                              ),
+                              child: _step == 0
+                                  ? _goals(compact, loading)
+                                  : _metrics(compact, loading),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  )
-                else
-                  for (final key in recommended)
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      secondary: CircleAvatar(
-                        backgroundColor: TrackingCatalog.metric(
-                          key,
-                        ).color.withValues(alpha: 0.14),
-                        child: Icon(
-                          TrackingCatalog.metric(key).icon,
-                          color: TrackingCatalog.metric(key).color,
+                  ),
+                ),
+        ),
+        bottomNavigationBar: ColoredBox(
+          color: const Color(0xFFFAF9F5),
+          child: SafeArea(
+            minimum: const EdgeInsets.fromLTRB(24, 10, 24, 16),
+            child: Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 472),
+                child: Row(
+                  children: [
+                    if (_step == 1) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: loading ? null : () => _goTo(0),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
+                            foregroundColor: _green,
+                            side: const BorderSide(color: _green),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('이전'),
                         ),
                       ),
-                      title: Text(
-                        TrackingCatalog.metric(key).label,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: const Text('Quick Log에 사용'),
-                      value: _enabledMetrics.contains(key),
-                      onChanged: (value) => setState(
-                        () => value
-                            ? _enabledMetrics.add(key)
-                            : _enabledMetrics.remove(key),
-                      ),
-                    ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          _SectionCard(
-            title: '3. 알림 설정을 선택해 주세요',
-            subtitle: '한 이벤트당 기본 1회',
-            child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(
-                  value: true,
-                  icon: Icon(Icons.notifications_rounded),
-                  label: Text('알림 허용'),
-                ),
-                ButtonSegment(
-                  value: false,
-                  icon: Icon(Icons.notifications_off_outlined),
-                  label: Text('나중에 설정'),
-                ),
-              ],
-              selected: {_remindersEnabled},
-              onSelectionChanged: (value) =>
-                  setState(() => _remindersEnabled = value.first),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.all(20),
-        child: FilledButton(
-          onPressed: saveState.isLoading ? null : _save,
-          child: saveState.isLoading
-              ? const SizedBox.square(
-                  dimension: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('설정 완료하고 시작하기'),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-  final String title;
-  final String subtitle;
-  final Widget child;
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(color: AppColors.muted)),
-          const SizedBox(height: 18),
-          child,
-        ],
-      ),
-    ),
-  );
-}
-
-class _ConditionChoice extends StatelessWidget {
-  const _ConditionChoice({
-    required this.definition,
-    required this.selected,
-    required this.onTap,
-  });
-  final ConditionDefinition definition;
-  final bool selected;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: MediaQuery.sizeOf(context).width > 560 ? 230 : double.infinity,
-    child: Material(
-      color: selected ? const Color(0xFFEAF7F0) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.outline,
-          width: selected ? 1.5 : 1,
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              Icon(
-                definition.icon,
-                color: selected ? AppColors.primary : AppColors.muted,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      definition.label,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      definition.subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      flex: _step == 0 ? 1 : 2,
+                      child: FilledButton(
+                        key: const ValueKey('tracking-next'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _green,
+                          minimumSize: const Size.fromHeight(50),
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onPressed: loading || _conditions.isEmpty
+                            ? null
+                            : () {
+                                if (_step == 0) {
+                                  _goTo(1);
+                                } else {
+                                  _save();
+                                }
+                              },
+                        child: loading
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _step == 0
+                                    ? '다음'
+                                    : widget.editing
+                                    ? '저장하기'
+                                    : '시작하기',
+                              ),
                       ),
                     ),
                   ],
                 ),
               ),
-              if (selected)
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppColors.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _heading(String title, String subtitle, bool compact) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: const TextStyle(
+          fontSize: 19,
+          height: 1.35,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF263D2B),
+        ),
+      ),
+      const SizedBox(height: 5),
+      Text(
+        subtitle,
+        style: const TextStyle(fontSize: 12, height: 1.4, color: _muted),
+      ),
+      SizedBox(height: compact ? 14 : 20),
+    ],
+  );
+
+  Widget _goals(bool compact, bool loading) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _heading('어떤 목표로 기록할까요?', '여러 개 골라도 좋아요', compact),
+      _Panel(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            children: [
+              for (final goal in TrackingCatalog.conditions) ...[
+                if (goal != TrackingCatalog.conditions.first)
+                  const SizedBox(height: 6),
+                _GoalRow(
+                  goal: goal,
+                  selected: _conditions.contains(goal.key),
+                  compact: compact,
+                  onTap: loading ? null : () => _toggleCondition(goal),
                 ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.only(top: 12),
+        child: Text(
+          '언제든지 설정에서 바꿀 수 있어요.',
+          style: TextStyle(fontSize: 11, color: _muted),
+        ),
+      ),
+    ],
+  );
+
+  Widget _metrics(bool compact, bool loading) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _heading('추적할 항목을 골라요', '필요한 항목만 켜두세요', compact),
+      _Panel(
+        child: Column(
+          children: [
+            for (final key in _visibleMetrics)
+              _MetricRow(
+                label: TrackingCatalog.metric(key).label,
+                rowKey: ValueKey('metric-$key'),
+                value: _choices[key] ?? false,
+                onChanged: loading
+                    ? null
+                    : (value) => setState(() => _choices[key] = value),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      _Panel(
+        child: _MetricRow(
+          label: '기록 알림',
+          rowKey: const ValueKey('tracking-reminders'),
+          value: _remindersEnabled,
+          onChanged: loading
+              ? null
+              : (value) => setState(() => _remindersEnabled = value),
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.only(top: 8),
+        child: Text(
+          '알림은 나중에 바꿀 수 있어요.',
+          style: TextStyle(fontSize: 11, color: _muted),
+        ),
+      ),
+    ],
+  );
+}
+
+class _Panel extends StatelessWidget {
+  const _Panel({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Container(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x07315337),
+          blurRadius: 18,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Material(color: Colors.transparent, child: child),
+  );
+}
+
+class _GoalRow extends StatelessWidget {
+  const _GoalRow({
+    required this.goal,
+    required this.selected,
+    required this.compact,
+    required this.onTap,
+  });
+  final ConditionDefinition goal;
+  final bool selected, compact;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Material(
+      color: selected ? const Color(0xFFEDF6E9) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: selected ? _green : Colors.transparent),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: BoxConstraints(minHeight: compact ? 56 : 64),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      goal.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF263D2B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      goal.subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        height: 1.3,
+                        color: _muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 22,
+                color: selected ? _green : const Color(0xFFAFB6AE),
+              ),
             ],
           ),
         ),
       ),
     ),
+  );
+}
+
+class _MetricRow extends StatelessWidget {
+  const _MetricRow({
+    required this.label,
+    required this.rowKey,
+    required this.value,
+    required this.onChanged,
+  });
+  final String label;
+  final Key rowKey;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    key: rowKey,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    dense: true,
+    visualDensity: const VisualDensity(vertical: -2),
+    title: Text(
+      label,
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+    ),
+    activeThumbColor: Colors.white,
+    activeTrackColor: _green,
+    value: value,
+    onChanged: onChanged,
+  );
+}
+
+class _StepProgress extends StatelessWidget {
+  const _StepProgress({
+    required this.step,
+    required this.enabled,
+    required this.hasGoal,
+    required this.onStep,
+  });
+  final int step;
+  final bool enabled, hasGoal;
+  final ValueChanged<int> onStep;
+  Widget _button(int i) => Expanded(
+    child: TextButton(
+      onPressed: !enabled || (i == 1 && !hasGoal) ? null : () => onStep(i),
+      style: TextButton.styleFrom(
+        foregroundColor: step == i ? _green : _muted,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(48, 40),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: step == i ? _green : const Color(0xFFE7EDE4),
+            ),
+            child: Text(
+              '${i + 1}',
+              textScaler: TextScaler.noScaling,
+              style: TextStyle(
+                fontSize: 12,
+                color: step == i ? Colors.white : _muted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              i == 0 ? '관리 목표' : '추적 항목',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      _button(0),
+      const SizedBox(width: 20, child: Divider(color: Color(0xFFD7E2D2))),
+      _button(1),
+    ],
   );
 }
