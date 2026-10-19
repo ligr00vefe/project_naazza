@@ -8,18 +8,24 @@ class FoodCandidate {
     required this.tags,
     required this.nutrition,
     this.amountG = 100,
+    this.amountUnit = 'g',
+    this.hasCompleteNutrition = true,
     this.isProduct = false,
     this.quantity = 1,
     this.portioned = false,
     this.totalAmountG,
+    this.nutritionSource,
   });
 
+  final Map<String, dynamic>? nutritionSource;
   final String name;
   final String normalizedName;
   final double confidence;
   final List<String> tags;
   final NutritionFacts nutrition;
   final double amountG;
+  final String amountUnit;
+  final bool hasCompleteNutrition;
   final bool isProduct;
   final int quantity;
   double get consumedAmountG => amountG * (isProduct ? quantity : 1);
@@ -36,6 +42,8 @@ class FoodCandidate {
     List<String>? tags,
     NutritionFacts? nutrition,
     double? amountG,
+    String? amountUnit,
+    bool? hasCompleteNutrition,
     bool? isProduct,
     int? quantity,
     bool? portioned,
@@ -47,10 +55,13 @@ class FoodCandidate {
     tags: tags ?? this.tags,
     nutrition: nutrition ?? this.nutrition,
     amountG: amountG ?? this.amountG,
+    amountUnit: amountUnit ?? this.amountUnit,
+    hasCompleteNutrition: hasCompleteNutrition ?? this.hasCompleteNutrition,
     isProduct: isProduct ?? this.isProduct,
     quantity: quantity ?? this.quantity,
     portioned: portioned ?? this.portioned,
     totalAmountG: totalAmountG ?? this.totalAmountG,
+    nutritionSource: nutritionSource,
   );
   FoodCandidate withPortion({
     required double totalG,
@@ -83,11 +94,35 @@ class FoodCandidate {
     );
   }
 
+  double? _recordNutrient(String field, double currentValue) {
+    if (hasCompleteNutrition) return currentValue;
+    final source = nutritionSource;
+    final values = source?['nutrition'];
+    final basis = source?['basis'];
+    if (values is! Map || basis is! Map) return null;
+    final raw = values[field], base = basis['value'];
+    if (raw is! num ||
+        !raw.isFinite ||
+        raw < 0 ||
+        base is! num ||
+        !base.isFinite ||
+        base <= 0) {
+      return null;
+    }
+    return raw.toDouble() * nutrition.baseAmountG / base.toDouble();
+  }
+
   Map<String, Object?> toRecordItem({String? sourceType}) => {
     'name': name,
     'normalized_name': normalizedName,
-    'amount_g': consumedAmountG,
-    'unit_amount_g': amountG,
+    'nutrition_source': ?(nutritionSource == null
+        ? null
+        : (Map<String, dynamic>.from(nutritionSource!)..remove('ingredients'))),
+    'amount': consumedAmountG,
+    'amount_unit': amountUnit,
+    'amount_g': amountUnit == 'g' ? consumedAmountG : null,
+    'unit_amount': amountG,
+    'unit_amount_g': amountUnit == 'g' ? amountG : null,
     'is_product': isProduct,
     'quantity': isProduct ? quantity : 1,
     'tags': tags,
@@ -95,15 +130,22 @@ class FoodCandidate {
     'nutrition_known': !tags.contains('열량미기록'),
     'source_type': ?sourceType,
     'portioned': portioned,
-    'total_amount_g': wholeAmountG,
+    'total_amount': wholeAmountG,
+    'total_amount_g': amountUnit == 'g' ? wholeAmountG : null,
+    'macronutrients_known': hasCompleteNutrition,
     'total_energy_kcal': wholeCalories,
     'nutrition': {
-      'base_amount_g': nutrition.baseAmountG,
+      'base_amount': nutrition.baseAmountG,
+      'amount_unit': amountUnit,
+      'base_amount_g': amountUnit == 'g' ? nutrition.baseAmountG : null,
       'energy_kcal': nutrition.energyKcal,
-      'carbohydrate_g': nutrition.carbohydrateG,
-      'protein_g': nutrition.proteinG,
-      'fat_g': nutrition.fatG,
-      'sodium_mg': nutrition.sodiumMg,
+      'carbohydrate_g': _recordNutrient(
+        'carbohydrateG',
+        nutrition.carbohydrateG,
+      ),
+      'protein_g': _recordNutrient('proteinG', nutrition.proteinG),
+      'fat_g': _recordNutrient('fatG', nutrition.fatG),
+      'sodium_mg': _recordNutrient('sodiumMg', nutrition.sodiumMg),
     },
   };
 }
@@ -138,12 +180,49 @@ class NutritionFacts {
   }
 }
 
+class IdentifiedProduct {
+  const IdentifiedProduct({
+    required this.name,
+    this.amountText = '',
+    this.energyKcal,
+    this.confidence = 0.85,
+  });
+  final String name;
+  final String amountText;
+  final double? energyKcal;
+  final double confidence;
+  static IdentifiedProduct? tryFromJson(Map<String, dynamic> json) {
+    final name = json['name'];
+    final confidence = json['confidence'];
+    if (name is! String ||
+        name.trim().isEmpty ||
+        confidence is! num ||
+        !confidence.isFinite ||
+        confidence < 0.85) {
+      return null;
+    }
+    final energy = json['energyKcal'];
+    return IdentifiedProduct(
+      name: name.trim(),
+      confidence: confidence.toDouble().clamp(0, 1),
+      amountText: json['amountText'] is String
+          ? (json['amountText'] as String).trim()
+          : '',
+      energyKcal: energy is num && energy.isFinite && energy >= 0
+          ? energy.toDouble()
+          : null,
+    );
+  }
+}
+
 class MealAnalysisResult {
   const MealAnalysisResult({
     required this.photoPath,
     required this.foods,
     this.failure,
+    this.identifiedProducts = const [],
   });
+  final List<IdentifiedProduct> identifiedProducts;
   final PhotoFailure? failure;
   final String? photoPath;
   final List<FoodCandidate> foods;

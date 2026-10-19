@@ -42,10 +42,11 @@ enum PhotoFailure {
     dark => '사진이 어둡게 보여요. 밝은 곳에서 다시 촬영해 주세요.',
     glare => '빛 반사로 글자를 읽기 어려워요. 촬영 각도를 바꿔 주세요.',
     noFood => '사진에서 음식이나 식품 포장을 확인하지 못했어요. 다시 촬영해 주세요.',
-    productUnidentified => '상품을 확실하게 식별하지 못했어요. 제품명이 보이게 촬영해 주세요.',
+    productUnidentified =>
+      '이 사진에서는 상품을 인식할 수 없어요. 제품명이 보이게 다시 촬영하거나 직접 입력해 주세요.',
     unreadableLabel => '제품명이 읽히지 않아요. 제품명을 가까이 촬영해 주세요.',
     missingNutrition => '영양표를 읽지 못했어요. 영양표를 추가로 촬영하거나 직접 입력해 주세요.',
-    lowConfidence => '식별 결과가 확실하지 않아요. 다시 촬영하거나 직접 입력해 주세요.',
+    lowConfidence => '상품이나 음식을 확실하게 인식하지 못했어요. 다시 촬영하거나 직접 입력해 주세요.',
     unknown => '사진의 식별 실패 원인을 확인하지 못했어요. 다른 사진으로 시도하거나 직접 입력해 주세요.',
   };
   static PhotoFailure fromCode(Object? code) => switch (code) {
@@ -72,7 +73,9 @@ enum PhotoFailure {
     'no_food' => noFood,
     'product_unidentified' => productUnidentified,
     'product_name_unreadable' => unreadableLabel,
-    'nutrition_unreadable' || 'invalid_nutrition' => missingNutrition,
+    'nutrition_unreadable' ||
+    'product_identified_nutrition_pending' ||
+    'invalid_nutrition' => missingNutrition,
     'low_confidence' => lowConfidence,
     _ => unknown,
   };

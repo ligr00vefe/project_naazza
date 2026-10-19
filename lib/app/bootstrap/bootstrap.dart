@@ -1,3 +1,5 @@
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../features/auth/data/login_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/app_config.dart';
@@ -33,9 +35,19 @@ Future<BootstrapDependencies> bootstrap() async {
       'or launch with .\\tool\\naazza_env.ps1 run.',
     );
   }
+  final loginSettings = LoginPreferences(await SharedPreferences.getInstance());
   await Supabase.initialize(
     url: config.supabaseUrl,
     publishableKey: config.supabasePublishableKey,
+    authOptions: FlutterAuthClientOptions(
+      localStorage: OptInSessionStorage(
+        loginSettings,
+        SharedPreferencesLocalStorage(
+          persistSessionKey:
+              'sb-${Uri.parse(config.supabaseUrl).host.split('.').first}-auth-token',
+        ),
+      ),
+    ),
   );
   final client = Supabase.instance.client;
   final repository = SupabaseAuthRepository(client);

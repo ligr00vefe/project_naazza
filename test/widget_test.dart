@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ import 'package:naazza/features/tracking_profile/data/tracking_profile_repositor
 import 'package:naazza/features/visits/domain/visit_preparation.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   test('데모 회원가입은 아이디와 PIN으로 바로 로그인한다', () async {
     final repository = DemoAuthRepository();
 
@@ -49,6 +51,9 @@ void main() {
     expect(find.text('나의 기록이 내일의 변화를 만들어요'), findsOneWidget);
     await tester.enterText(find.byType(TextField).at(0), 'demo_user');
     await tester.enterText(find.byType(TextField).at(1), '1234');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('로그인'));
     await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
     expect(find.text('1. 관리 목표를 선택해 주세요'), findsOneWidget);

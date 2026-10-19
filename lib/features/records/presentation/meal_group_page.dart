@@ -1,3 +1,4 @@
+import 'ingredient_details_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -115,9 +116,30 @@ class _MealDetails extends ConsumerWidget {
               for (final item in items)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(_itemDescription(item)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_itemDescription(item)),
+                      TextButton(
+                        onPressed: () => showDialog<void>(
+                          context: context,
+                          builder: (_) => IngredientDetailsDialog(item: item),
+                        ),
+                        child: const Text('원재료 정보 보기'),
+                      ),
+                    ],
+                  ),
                 ),
             ],
+            if (items.isEmpty)
+              TextButton(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) =>
+                      IngredientDetailsDialog(item: {'name': record.title}),
+                ),
+                child: const Text('원재료 정보 보기'),
+              ),
             if (record.data['small_meal'] == true) const Text('소식했어요'),
             if (record.data['memo']?.toString().isNotEmpty == true) ...[
               const SizedBox(height: 8),
@@ -132,8 +154,10 @@ class _MealDetails extends ConsumerWidget {
 
 String _itemDescription(Map item) {
   final nutrition = item['nutrition'] as Map? ?? {};
-  final amount = nutritionNumber(item['amount_g']);
-  final base = nutritionNumber(nutrition['base_amount_g']);
+  final amount = nutritionNumber(item['amount'] ?? item['amount_g']);
+  final base = nutritionNumber(
+    nutrition['base_amount'] ?? nutrition['base_amount_g'],
+  );
   final energy = nutritionNumber(nutrition['energy_kcal']);
   final scaled =
       item['nutrition_known'] == false ||
@@ -149,8 +173,9 @@ String _itemDescription(Map item) {
   final count = item['is_product'] == true
       ? '${item['quantity'] ?? 1}개 · '
       : '';
+  final unit = item['amount_unit']?.toString() ?? 'g';
   final portion = item['portioned'] == true
-      ? '소분 ${item['unit_amount_g'] ?? item['amount_g']}g / 전체 ${item['total_amount_g']}g · '
+      ? '소분 ${item['unit_amount'] ?? item['unit_amount_g'] ?? item['amount']}$unit / 전체 ${item['total_amount'] ?? item['total_amount_g']}$unit · '
       : '';
-  return '${item['name'] ?? '음식'} · $count$portion${amount == null ? '섭취량 미기록' : '${amount.round()}g'} · ${scaled == null ? '열량 미기록' : '${scaled.round()} kcal'}';
+  return '${item['name'] ?? '음식'} · $count$portion${amount == null ? '섭취량 미기록' : '${amount.round()}$unit'} · ${scaled == null ? '열량 미기록' : '${scaled.round()} kcal'}';
 }

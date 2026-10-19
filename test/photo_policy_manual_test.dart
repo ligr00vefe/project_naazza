@@ -63,16 +63,22 @@ void main() {
     await tester.pump();
   });
   test('서버 무응답 두 번을 인식 불가 상품으로 단정하지 않는다', () {
-    expect(photoFailureMessage(timedOut: true, failures: 2), contains('AI 서버'));
+    expect(
+      photoFailureMessage(timedOut: true, failures: 2),
+      contains('분석 시간이 초과'),
+    );
     expect(
       photoFailureMessage(timedOut: true, failures: 2),
       isNot(contains('상품')),
     );
     expect(
       photoFailureMessage(timedOut: false, failures: 2),
-      contains('상품을 인식할 수 없어요'),
+      contains('직접 입력'),
     );
-    expect(photoFailureMessage(timedOut: false, failures: 1), contains('재촬영'));
+    expect(
+      photoFailureMessage(timedOut: false, failures: 1),
+      contains('다른 사진'),
+    );
   });
   testWidgets('직접 입력 사진 첨부는 AI를 호출하지 않고 기록에 저장된다', (tester) async {
     final repo = DemoRecordsRepository(),
@@ -126,4 +132,51 @@ void main() {
     expect(photo.analyses, 0);
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'missing calories remain unknown when saving an identified product',
+    (tester) async {
+      final repo = DemoRecordsRepository(), auth = DemoAuthRepository();
+      await tester.runAsync(() => auth.signIn(username: 'tester', pin: '1234'));
+      final router = GoRouter(
+        initialLocation: '/manual',
+        routes: [
+          GoRoute(
+            path: '/manual',
+            builder: (_, _) => MealRecordPage(
+              initialPhoto: ManualMealPhoto(
+                bytes: base64Decode(
+                  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO1sAAAAASUVORK5CYII=',
+                ),
+                filename: 'test.png',
+                productName: '퀴노아 크래커',
+              ),
+            ),
+          ),
+          GoRoute(path: '/timeline', builder: (_, _) => const Scaffold()),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(auth),
+            recordsRepositoryProvider.overrideWithValue(repo),
+            mealAnalysisRepositoryProvider.overrideWithValue(PhotoSpy()),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('기록 저장하기'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('기록 저장하기'));
+      await tester.pumpAndSettle();
+      final record = (await repo.list('demo-user')).single;
+      expect(record.title, '퀴노아 크래커');
+      expect(record.data['energy_kcal'], isNull);
+      expect(record.data['nutrition_known'], false);
+      expect(record.summary, contains('열량 미기록'));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

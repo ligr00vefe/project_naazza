@@ -1,3 +1,7 @@
+import '../../../core/widgets/record_datetime_field.dart';
+import 'public_product_dialog.dart';
+import '../domain/photo_food_resolution.dart';
+import '../../records/presentation/meal_record_page.dart';
 import '../domain/photo_failure.dart';
 import 'photo_analysis_policy.dart';
 import 'food_portion_dialog.dart';
@@ -17,43 +21,65 @@ import '../data/meal_analysis_repository.dart';
 import '../domain/meal_analysis.dart';
 
 class MealCapturePage extends ConsumerStatefulWidget {
-  const MealCapturePage({super.key});
+  const MealCapturePage({
+    super.key,
+    this.pickImage,
+    this.autoLookup = true,
+    this.publicLookup,
+  });
+  final bool autoLookup;
+  final PublicProductLookup? publicLookup;
+  final Future<XFile?> Function(ImageSource source)? pickImage;
   @override
   ConsumerState<MealCapturePage> createState() => _MealCapturePageState();
 }
 
 class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   final _picker = ImagePicker();
+  MealAnalysisRepository? _photoRepository;
+  int _analysisVersion = 0;
+  int _failureCount = 0;
+  PhotoFailure? _failureReason;
+  bool get _suggestManual =>
+      _failureCount >= 2 ||
+      _failureReason == PhotoFailure.productUnidentified ||
+      _failureReason == PhotoFailure.rateLimited;
   Uint8List? _imageBytes;
   String _filename = 'meal.jpg';
   String? _photoPath;
   List<FoodCandidate> _foods = [];
+  List<IdentifiedProduct> _identifiedProducts = [];
   bool _analyzing = false;
   bool _takingLong = false;
-  int _recognitionFailures = 0, _responseFailures = 0;
-  PhotoFailure? _lastFailureReason;
   bool _smallMeal = false;
+  DateTime _eatenAt = DateTime.now();
   String _mealType = 'meal';
   bool _saved = false;
   String? _error;
 
   Future<void> _pick(ImageSource source) async {
     try {
-      final file = await _picker.pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 82,
-      );
+      final file =
+          await (widget.pickImage?.call(source) ??
+              _picker.pickImage(
+                source: source,
+                maxWidth: 1600,
+                maxHeight: 1600,
+                imageQuality: 82,
+              ));
       if (file == null) return;
-      await ref.read(mealAnalysisRepositoryProvider).discardPhoto(_photoPath);
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      unawaited(
+        ref.read(mealAnalysisRepositoryProvider).discardPhoto(_photoPath),
+      );
       _photoPath = null;
       _foods = [];
-      _imageBytes = await file.readAsBytes();
+      _identifiedProducts = [];
+      _imageBytes = bytes;
       _filename = file.name;
-      _recognitionFailures = 0;
-      _responseFailures = 0;
-      _lastFailureReason = null;
+      _failureCount = 0;
+      _failureReason = null;
       if (mounted) setState(() {});
       await _analyze();
     } catch (error) {
@@ -62,15 +88,11 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   }
 
   String _failureMessage(PhotoFailure reason) {
-    final count = _lastFailureReason == reason
-        ? (reason.isTransport ? _responseFailures : _recognitionFailures) + 1
-        : 1;
-    _lastFailureReason = reason;
-    _responseFailures = reason.isTransport ? count : 0;
-    _recognitionFailures = reason.isTransport ? 0 : count;
+    _failureCount++;
+    _failureReason = reason;
     return photoFailureMessage(
       timedOut: reason == PhotoFailure.timeout,
-      failures: count,
+      failures: _failureCount,
       reason: reason,
     );
   }
@@ -79,6 +101,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
     if (_analyzing) return;
     final bytes = _imageBytes;
     if (bytes == null) return;
+    final version = ++_analysisVersion;
     setState(() {
       _analyzing = true;
       _takingLong = false;
@@ -93,15 +116,14 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       }
       final user = ref.read(authRepositoryProvider).currentUser!;
       final repository = ref.read(mealAnalysisRepositoryProvider);
+      _photoRepository = repository;
       var expired = false;
-      final request = repository.analyze(
-        userId: user.id,
-        imageBytes: bytes,
-        filename: _filename,
-      );
+      final request = repository
+          .analyze(userId: user.id, imageBytes: bytes, filename: _filename)
+          .then(resolvePhotoFoods);
       unawaited(
         request.then<void>((result) {
-          if (expired || !mounted) {
+          if (expired || !mounted || version != _analysisVersion) {
             unawaited(repository.discardPhoto(result.photoPath));
           }
         }, onError: (Object error, StackTrace stack) {}),
@@ -111,31 +133,56 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
         result = await runPhotoAnalysis(
           request,
           onSlow: () {
-            if (mounted) setState(() => _takingLong = true);
+            if (mounted && version == _analysisVersion) {
+              setState(() => _takingLong = true);
+            }
           },
         );
       } on TimeoutException {
         expired = true;
         rethrow;
       }
-      if (!mounted) {
-        unawaited(repository.discardPhoto(result.photoPath));
-        return;
-      }
+      if (!mounted || version != _analysisVersion) return;
       setState(() {
         _foods = result.foods;
+        _identifiedProducts = result.identifiedProducts;
         _photoPath = result.photoPath;
         if (result.foods.isNotEmpty) {
-          _recognitionFailures = 0;
-          _responseFailures = 0;
-          _lastFailureReason = null;
+          _failureCount = 0;
+          _failureReason = null;
         }
-        if (result.foods.isEmpty) {
+        if (result.foods.isEmpty && result.identifiedProducts.isEmpty) {
           _error = _failureMessage(result.failure ?? PhotoFailure.unknown);
         }
       });
+      if (widget.autoLookup) {
+        final products = [
+          ...result.identifiedProducts,
+          for (final food in result.foods.where((food) => food.isProduct))
+            IdentifiedProduct(
+              name: food.name,
+              amountText: '${food.wholeAmountG}${food.amountUnit}',
+              energyKcal: food.wholeCalories,
+              confidence: food.confidence,
+            ),
+        ];
+        if (products.length == 1) {
+          setState(() {
+            _analyzing = false;
+            _takingLong = false;
+          });
+          final product = products.single;
+          final index = _foods.indexWhere(
+            (food) => food.isProduct && food.name == product.name,
+          );
+          await _lookupPublicProduct(
+            product,
+            replaceIndex: index < 0 ? null : index,
+          );
+        }
+      }
     } catch (error) {
-      if (mounted) {
+      if (mounted && version == _analysisVersion) {
         final reason = error is PhotoAnalysisException
             ? error.reason
             : error is TimeoutException
@@ -144,19 +191,79 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
         setState(
           () => _error = reason != null
               ? _failureMessage(reason)
-              : error is StateError
-              ? error.message.toString()
               : _failureMessage(PhotoFailure.unknown),
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && version == _analysisVersion) {
         setState(() {
           _analyzing = false;
           _takingLong = false;
         });
       }
     }
+  }
+
+  void _cancelAnalysis() {
+    if (!_analyzing) return;
+    _analysisVersion++;
+    setState(() {
+      _analyzing = false;
+      _takingLong = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _lookupPublicProduct(
+    IdentifiedProduct product, {
+    int? replaceIndex,
+  }) async {
+    final food = await showDialog<FoodCandidate>(
+      context: context,
+      builder: (_) => PublicProductDialog(
+        photo: product,
+        lookup: widget.publicLookup,
+        onManual: () => _manualEntry(product: product),
+      ),
+    );
+    if (!mounted || food == null) return;
+    setState(() {
+      if (replaceIndex != null && replaceIndex < _foods.length) {
+        final previous = _foods[replaceIndex];
+        var replacement = food.copyWith(quantity: previous.quantity);
+        if (previous.portioned) {
+          replacement = replacement.withPortion(
+            totalG: food.wholeAmountG,
+            totalKcal: food.wholeCalories,
+            consumedG: previous.amountG,
+            enabled: true,
+          );
+        }
+        _foods[replaceIndex] = replacement;
+      } else {
+        _foods.add(food);
+      }
+      _identifiedProducts.remove(product);
+    });
+  }
+
+  void _manualEntry({IdentifiedProduct? product}) {
+    _cancelAnalysis();
+    product ??= _identifiedProducts.length == 1
+        ? _identifiedProducts.first
+        : null;
+    context.push(
+      '/record/meal',
+      extra: _imageBytes == null
+          ? null
+          : ManualMealPhoto(
+              bytes: _imageBytes!,
+              filename: _filename,
+              productName: product?.name,
+              amountText: product?.amountText,
+              energyKcal: product?.energyKcal,
+            ),
+    );
   }
 
   Future<void> _searchAndAdd() async {
@@ -187,53 +294,9 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       });
       return;
     }
-    setState(() {
-      _analyzing = true;
-      _error = null;
-    });
-    try {
-      final results = await ref
-          .read(mealAnalysisRepositoryProvider)
-          .searchNutrition(request.name);
-      if (!mounted) return;
-      if (results.isEmpty) {
-        setState(() => _error = '검색 결과가 없어요. 이름만 추가하거나 직접 입력해 주세요.');
-        return;
-      }
-      setState(() => _analyzing = false);
-      final food = await showModalBottomSheet<FoodCandidate>(
-        context: context,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (context) => ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Text('추정 영양정보를 확인하고 골라 주세요.'),
-            const SizedBox(height: 12),
-            for (final food in results)
-              ListTile(
-                title: Text(food.name),
-                subtitle: Text(
-                  '${food.amountG.round()}g · ${food.consumedNutrition.energyKcal.round()} kcal',
-                ),
-                onTap: () => Navigator.pop(context, food),
-              ),
-          ],
-        ),
-      );
-      if (mounted && food != null) setState(() => _foods.add(food));
-    } catch (error) {
-      if (mounted) {
-        setState(
-          () => _error = error is StateError
-              ? error.message.toString()
-              : '검색 서버에 연결하지 못했어요. 이름만 추가하거나 직접 입력해 주세요.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _analyzing = false);
-    }
+    await _lookupPublicProduct(
+      IdentifiedProduct(name: request.name, confidence: 1),
+    );
   }
 
   Future<void> _editAmount(int index) async {
@@ -255,7 +318,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       id: 'meal-${DateTime.now().microsecondsSinceEpoch}',
       userId: user.id,
       type: HealthRecordType.meal,
-      recordedAt: DateTime.now(),
+      recordedAt: _eatenAt,
       title: _foods.map((food) => food.name).join(', '),
       summary: '${_foods.length}개 음식 · ${total.round()} kcal',
       data: {
@@ -277,9 +340,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   @override
   void dispose() {
     if (!_saved && _photoPath != null) {
-      unawaited(
-        ref.read(mealAnalysisRepositoryProvider).discardPhoto(_photoPath),
-      );
+      unawaited(_photoRepository?.discardPhoto(_photoPath));
     }
     super.dispose();
   }
@@ -329,7 +390,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
                 ),
               ],
             ),
-          if (_imageBytes != null && !_analyzing)
+          if (_imageBytes != null && !_analyzing && _error == null)
             Row(
               children: [
                 TextButton(
@@ -363,8 +424,22 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
                   const SizedBox(height: 12),
                   Text(
                     _takingLong
-                        ? '분석이 지연되고 있어요. 조금 더 기다려 주세요.'
+                        ? '분석이 지연되고 있어요. 기다리거나 직접 입력으로 기록할 수 있어요.'
                         : '음식을 분석하고 있어요...',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: _cancelAnalysis,
+                        child: const Text('분석 대기 종료'),
+                      ),
+                      TextButton(
+                        onPressed: _manualEntry,
+                        child: const Text('사진 첨부해 직접 입력'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -372,21 +447,104 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: MaterialBanner(
-                content: Text(_error!),
-                actions: [
-                  if (_imageBytes != null)
-                    TextButton(
-                      onPressed: _analyzing ? null : _analyze,
-                      child: const Text('다시 분석'),
-                    ),
-                  TextButton(
-                    onPressed: () => context.push('/record/meal'),
-                    child: const Text('직접 입력'),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_error!),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (_suggestManual)
+                            FilledButton(
+                              onPressed: _manualEntry,
+                              child: const Text('사진 첨부해 직접 입력'),
+                            ),
+                          if (_imageBytes != null)
+                            if (!_suggestManual &&
+                                _failureReason?.isTransport == true)
+                              FilledButton(
+                                onPressed: _analyzing ? null : _analyze,
+                                child: const Text('다시 분석'),
+                              )
+                            else
+                              TextButton(
+                                onPressed: _analyzing ? null : _analyze,
+                                child: const Text('다시 분석'),
+                              ),
+                          if (!_suggestManual &&
+                              _failureReason?.isTransport != true)
+                            FilledButton(
+                              onPressed: _analyzing
+                                  ? null
+                                  : () => _pick(ImageSource.camera),
+                              child: const Text('재촬영하기'),
+                            )
+                          else
+                            TextButton(
+                              onPressed: _analyzing
+                                  ? null
+                                  : () => _pick(ImageSource.camera),
+                              child: const Text('재촬영하기'),
+                            ),
+                          TextButton(
+                            onPressed: _analyzing
+                                ? null
+                                : () => _pick(ImageSource.gallery),
+                            child: const Text('다른 사진 선택'),
+                          ),
+                          if (!_suggestManual)
+                            TextButton(
+                              onPressed: _manualEntry,
+                              child: const Text('사진 첨부해 직접 입력'),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
+          if (_identifiedProducts.isNotEmpty && !_analyzing) ...[
+            const SizedBox(height: 16),
+            Text('제품명을 확인했어요', style: Theme.of(context).textTheme.titleLarge),
+            const Text('제품 정보를 조회하거나 사진을 첨부해 직접 입력할 수 있어요.'),
+            for (final product in _identifiedProducts)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (product.amountText.isNotEmpty)
+                        Text('사진에서 읽은 용량: ${product.amountText}'),
+                      Text(
+                        product.energyKcal == null
+                            ? '열량은 사진에서 확인하지 못했어요.'
+                            : '사진에서 읽은 열량: ${product.energyKcal!.round()} kcal',
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: () => _lookupPublicProduct(product),
+                        child: const Text('공공데이터에서 제품 조회'),
+                      ),
+                      FilledButton(
+                        onPressed: () => _manualEntry(product: product),
+                        child: const Text('확인한 정보로 기록하기'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
           if (_foods.isNotEmpty) ...[
             const SizedBox(height: 22),
             Row(
@@ -403,13 +561,33 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
                 ),
               ],
             ),
-            for (var index = 0; index < _foods.length; index++)
+            for (var index = 0; index < _foods.length; index++) ...[
               _FoodCard(
                 food: _foods[index],
                 onChanged: (food) => setState(() => _foods[index] = food),
                 onAmount: () => _editAmount(index),
                 onDelete: () => setState(() => _foods.removeAt(index)),
               ),
+              if (_foods[index].isProduct)
+                TextButton(
+                  onPressed: () => _lookupPublicProduct(
+                    IdentifiedProduct(
+                      name: _foods[index].name,
+                      amountText:
+                          '${_foods[index].wholeAmountG}${_foods[index].amountUnit}',
+                      energyKcal: _foods[index].wholeCalories,
+                    ),
+                    replaceIndex: index,
+                  ),
+                  child: const Text('공공데이터에서 제품 정보 확인'),
+                ),
+            ],
+            RecordDateTimeField(
+              label: '식사 시각',
+              value: _eatenAt,
+              onChanged: (v) => setState(() => _eatenAt = v),
+            ),
+            const SizedBox(height: 16),
             MealCategorySelector(
               value: _mealType,
               onChanged: (value) => setState(() => _mealType = value),
@@ -549,7 +727,7 @@ class _FoodCard extends StatelessWidget {
                 ),
                 TextButton(
                   onPressed: onAmount,
-                  child: Text('${food.amountG}g'),
+                  child: Text('${food.amountG}${food.amountUnit}'),
                 ),
                 IconButton(
                   onPressed: onDelete,

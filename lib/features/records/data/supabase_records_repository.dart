@@ -11,11 +11,11 @@ class SupabaseRecordsRepository implements RecordsRepository {
   @override
   Future<List<HealthRecord>> list(String userId) async {
     final responses = await Future.wait([
-      _client.from('meals').select().eq('user_id', userId),
-      _client.from('condition_logs').select().eq('user_id', userId),
-      _client.from('bowel_logs').select().eq('user_id', userId),
-      _client.from('visit_events').select().eq('user_id', userId),
-      _client.from('alcohol_logs').select().eq('user_id', userId),
+      _allRows('meals', userId),
+      _allRows('condition_logs', userId),
+      _allRows('bowel_logs', userId),
+      _allRows('visit_events', userId),
+      _allRows('alcohol_logs', userId),
     ]);
     final records = <HealthRecord>[
       for (final row in responses[0]) _mealFromRow(row),
@@ -25,6 +25,27 @@ class SupabaseRecordsRepository implements RecordsRepository {
       for (final row in responses[4]) _alcoholFromRow(row),
     ]..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return records;
+  }
+
+  Future<List<Map<String, dynamic>>> _allRows(
+    String table,
+    String userId,
+  ) async {
+    const size = 500;
+    final rows = <Map<String, dynamic>>[];
+    for (var offset = 0; ; offset += size) {
+      final page = await _client
+          .from(table)
+          .select()
+          .eq('user_id', userId)
+          .order('id')
+          .range(offset, offset + size - 1);
+      rows.addAll(page);
+      if (page.length < size) {
+        break;
+      }
+    }
+    return rows;
   }
 
   @override
@@ -83,7 +104,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
   Map<String, Object?> _toRow(HealthRecord record) => switch (record.type) {
     HealthRecordType.meal => {
       'user_id': record.userId,
-      'eaten_at': record.recordedAt.toIso8601String(),
+      'eaten_at': record.recordedAt.toUtc().toIso8601String(),
       'meal_type': record.data['meal_type'],
       'food_name': record.title,
       'amount_text': record.data['amount_text'],
@@ -93,14 +114,16 @@ class SupabaseRecordsRepository implements RecordsRepository {
     },
     HealthRecordType.condition => {
       'user_id': record.userId,
-      'recorded_at': record.recordedAt.toIso8601String(),
+      'recorded_at': record.recordedAt.toUtc().toIso8601String(),
       'response_status': record.data['response_status'],
       'symptoms': record.data['symptoms'],
       'memo': record.data['memo'],
     },
     HealthRecordType.bowel => {
       'user_id': record.userId,
-      'recorded_at': record.recordedAt.toIso8601String(),
+      'recorded_at': record.recordedAt.toUtc().toIso8601String(),
+      'had_bowel_movement': record.data['had_bowel_movement'] ?? true,
+      'constipation': record.data['constipation'] ?? false,
       'bristol_type': record.data['bristol_type'],
       'urgency': record.data['urgency'],
       'pain': record.data['pain'],
@@ -109,7 +132,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
     },
     HealthRecordType.alcohol => {
       'user_id': record.userId,
-      'recorded_at': record.recordedAt.toIso8601String(),
+      'recorded_at': record.recordedAt.toUtc().toIso8601String(),
       'drink_type': record.data['drink_type'],
       'servings': record.data['servings'],
       'glass_label': record.data['glass_label'],
@@ -120,7 +143,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
     },
     HealthRecordType.visit => {
       'user_id': record.userId,
-      'visit_at': record.recordedAt.toIso8601String(),
+      'visit_at': record.recordedAt.toUtc().toIso8601String(),
       'visit_type': record.data['visit_type'],
       'facility_label': record.data['facility_label'],
       'next_visit_at': record.data['next_visit_at'],
@@ -182,9 +205,10 @@ class SupabaseRecordsRepository implements RecordsRepository {
     userId: row['user_id'] as String,
     type: HealthRecordType.bowel,
     recordedAt: DateTime.parse(row['recorded_at'] as String),
-    title: '배변 기록',
-    summary:
-        '${BowelForm.recordLabel(row['bristol_type'])} · ${row['amount'] ?? '보통'}',
+    title: row['had_bowel_movement'] == false ? '변비 기록' : '배변 기록',
+    summary: row['had_bowel_movement'] == false
+        ? '변비 · 배변 못함'
+        : '${row['constipation'] == true ? '변비 · ' : ''}${BowelForm.recordLabel(row['bristol_type'])} · ${row['amount'] ?? '보통'}',
     data: Map<String, Object?>.from(row),
   );
 

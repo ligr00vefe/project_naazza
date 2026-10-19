@@ -1,3 +1,4 @@
+import '../../../core/widgets/record_datetime_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,8 @@ class BowelRecordPage extends ConsumerStatefulWidget {
 }
 
 class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
+  DateTime _recordedAt = DateTime.now();
+  bool _hadMovement = true, _constipation = false;
   int _bristol = 4;
   String _urgency = '없음';
   String _pain = '없음';
@@ -24,8 +27,11 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
   @override
   void initState() {
     super.initState();
+    _recordedAt = widget.record?.recordedAt.toLocal() ?? DateTime.now();
     final data = widget.record?.data;
     if (data != null) {
+      _hadMovement = data['had_bowel_movement'] != false;
+      _constipation = data['constipation'] == true;
       _bristol = data['bristol_type'] as int? ?? 4;
       _urgency = data['urgency']?.toString() ?? '없음';
       _pain = data['pain']?.toString() ?? '없음';
@@ -46,14 +52,18 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
       id: widget.record?.id ?? 'bowel-${DateTime.now().microsecondsSinceEpoch}',
       userId: user.id,
       type: HealthRecordType.bowel,
-      recordedAt: widget.record?.recordedAt ?? DateTime.now(),
-      title: '배변 기록',
-      summary: '${BowelForm.recordLabel(_bristol)} · $_amount',
+      recordedAt: _recordedAt,
+      title: _hadMovement ? '배변 기록' : '변비 기록',
+      summary: _hadMovement
+          ? '${_constipation ? '변비 · ' : ''}${BowelForm.recordLabel(_bristol)} · $_amount'
+          : '변비 · 배변 못함',
       data: {
-        'bristol_type': _bristol,
+        'had_bowel_movement': _hadMovement,
+        'constipation': _constipation,
+        'bristol_type': _hadMovement ? _bristol : null,
         'urgency': _urgency,
         'pain': _pain,
-        'amount': _amount,
+        'amount': _hadMovement ? _amount : null,
         'memo': _memo.text.trim(),
       },
     );
@@ -71,10 +81,44 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
       children: [
         Text('오늘의 배변은?', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 18),
-        BowelFormSelector(
-          value: _bristol,
-          onChanged: (value) => setState(() => _bristol = value),
+        RecordDateTimeField(
+          label: '기록 시각',
+          value: _recordedAt,
+          onChanged: (v) => setState(() => _recordedAt = v),
         ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('배변했어요'),
+              selected: _hadMovement,
+              onSelected: (_) => setState(() => _hadMovement = true),
+            ),
+            ChoiceChip(
+              label: const Text('변비 · 배변 못함'),
+              selected: !_hadMovement,
+              onSelected: (_) => setState(() {
+                _hadMovement = false;
+                _constipation = true;
+              }),
+            ),
+          ],
+        ),
+        if (_hadMovement)
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('변비가 있었어요'),
+            value: _constipation,
+            onChanged: (v) => setState(() => _constipation = v),
+          ),
+        const SizedBox(height: 14),
+        if (_hadMovement)
+          BowelFormSelector(
+            value: _bristol,
+            onChanged: (value) => setState(() => _bristol = value),
+          ),
         const SizedBox(height: 14),
         _ChoiceSection(
           title: '긴급도',
@@ -90,12 +134,13 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
           onChanged: (value) => setState(() => _pain = value),
         ),
         const SizedBox(height: 14),
-        _ChoiceSection(
-          title: '양',
-          values: const ['소량', '보통', '많음'],
-          selected: _amount,
-          onChanged: (value) => setState(() => _amount = value),
-        ),
+        if (_hadMovement)
+          _ChoiceSection(
+            title: '양',
+            values: const ['소량', '보통', '많음'],
+            selected: _amount,
+            onChanged: (value) => setState(() => _amount = value),
+          ),
         const SizedBox(height: 14),
         TextField(
           controller: _memo,

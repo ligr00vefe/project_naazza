@@ -20,7 +20,16 @@ class RecordDetailPage extends ConsumerWidget {
       if (date != null)
         ('기록 시간', '${date.year}.${date.month}.${date.day} ${recordTime(date)}'),
       if (record.type == HealthRecordType.bowel) ...[
-        ('형태', BowelForm.recordLabel(data['bristol_type'])),
+        (
+          '상태',
+          data['had_bowel_movement'] == false
+              ? '변비 · 배변 못함'
+              : data['constipation'] == true
+              ? '배변 · 변비 있음'
+              : '배변',
+        ),
+        if (data['had_bowel_movement'] != false)
+          ('형태', BowelForm.recordLabel(data['bristol_type'])),
         ('통증', '${data['pain'] ?? '미기록'}'),
         ('긴급도', '${data['urgency'] ?? '미기록'}'),
         ('양', '${data['amount'] ?? '미기록'}'),

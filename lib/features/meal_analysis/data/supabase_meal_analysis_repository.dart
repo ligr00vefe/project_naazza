@@ -69,6 +69,18 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
       return MealAnalysisResult(
         photoPath: path,
         foods: foods,
+        identifiedProducts:
+            (data['identifiedProducts'] is List
+                    ? data['identifiedProducts'] as List
+                    : const [])
+                .whereType<Map>()
+                .map(
+                  (value) => IdentifiedProduct.tryFromJson(
+                    Map<String, dynamic>.from(value),
+                  ),
+                )
+                .whereType<IdentifiedProduct>()
+                .toList(),
         failure: foods.isEmpty
             ? PhotoFailure.fromCode((data['diagnosis'] as Map?)?['code'])
             : null,
@@ -133,10 +145,9 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
   Future<List<FoodCandidate>> searchNutrition(String query) async {
     final FunctionResponse response;
     try {
-      response = await _client.functions.invoke(
-        'nutrition-search',
-        body: {'query': query, 'locale': 'ko-KR'},
-      );
+      response = await _client.functions
+          .invoke('nutrition-search', body: {'query': query, 'locale': 'ko-KR'})
+          .timeout(const Duration(seconds: 8));
     } on FunctionException catch (error) {
       throw StateError(_functionErrorMessage(error, '영양정보 검색'));
     }
@@ -184,6 +195,14 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
         : null;
     return switch (code) {
       'NOT_FOUND' => '$action 서버가 아직 준비되지 않았어요. 사진 분석이나 직접 입력을 이용해 주세요.',
+      'public_nutrition_not_configured' ||
+      'public_nutrition_authentication_failed' =>
+        '영양정보 서비스 연결 설정을 확인해야 해요. 직접 입력할 수 있어요.',
+      'public_nutrition_timeout' => '영양정보 조회가 지연되고 있어요. 다시 조회하거나 직접 입력해 주세요.',
+      'public_nutrition_quota_exceeded' =>
+        '영양정보 서비스의 조회 한도에 도달했어요. 직접 입력할 수 있어요.',
+      'public_nutrition_unavailable' || 'public_nutrition_invalid_response' =>
+        '영양정보에 연결하지 못했어요. 다시 조회하거나 직접 입력해 주세요.',
       'invalid_barcode' => '바코드 번호를 확인해 주세요.',
       'product_lookup_unavailable' => '제품 정보 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
       'product_nutrition_missing' =>
@@ -209,6 +228,11 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
     return FoodCandidate(
       name: json['displayName'] as String,
       isProduct: json['isProduct'] == true,
+      amountUnit: json['amountUnit'] as String? ?? 'g',
+      hasCompleteNutrition: json['hasCompleteNutrition'] != false,
+      nutritionSource: json['nutritionSource'] is Map
+          ? Map<String, dynamic>.from(json['nutritionSource'] as Map)
+          : null,
       normalizedName:
           json['normalizedName'] as String? ?? json['displayName'] as String,
       confidence: (json['confidence'] as num?)?.toDouble() ?? 0,

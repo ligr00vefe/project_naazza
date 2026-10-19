@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'features/meal_analysis/data/ingredient_cache.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +14,7 @@ import 'features/meal_analysis/data/meal_analysis_repository.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final dependencies = await bootstrap();
+  unawaited(cleanupIngredientCache().catchError((Object error) {}));
   runApp(
     ProviderScope(
       overrides: [

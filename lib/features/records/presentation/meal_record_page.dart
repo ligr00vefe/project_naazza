@@ -1,3 +1,4 @@
+import '../../../core/widgets/record_datetime_field.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
@@ -12,8 +13,28 @@ import '../domain/health_record.dart';
 import 'records_controller.dart';
 import 'meal_category_selector.dart';
 
+class ManualMealPhoto {
+  const ManualMealPhoto({
+    required this.bytes,
+    required this.filename,
+    this.productName,
+    this.amountText,
+    this.energyKcal,
+  });
+  final String? productName, amountText;
+  final double? energyKcal;
+  final Uint8List bytes;
+  final String filename;
+}
+
 class MealRecordPage extends ConsumerStatefulWidget {
-  const MealRecordPage({super.key, this.record, this.pickImage});
+  const MealRecordPage({
+    super.key,
+    this.record,
+    this.pickImage,
+    this.initialPhoto,
+  });
+  final ManualMealPhoto? initialPhoto;
   final Future<XFile?> Function(ImageSource source)? pickImage;
   final HealthRecord? record;
   @override
@@ -25,6 +46,7 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
   late final TextEditingController _amount;
   late final TextEditingController _kcal;
   late final TextEditingController _memo;
+  DateTime _eatenAt = DateTime.now();
   String _mealType = 'meal';
   bool _smallMeal = false;
   bool _saving = false, _saved = false;
@@ -35,13 +57,26 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
   @override
   void initState() {
     super.initState();
+    _photoBytes = widget.initialPhoto?.bytes;
+    _filename = widget.initialPhoto?.filename ?? 'meal.jpg';
     final record = widget.record;
-    _food = TextEditingController(text: record?.title ?? '');
+    _eatenAt = record?.recordedAt.toLocal() ?? DateTime.now();
+    _food = TextEditingController(
+      text: record?.title ?? widget.initialPhoto?.productName ?? '',
+    );
     _amount = TextEditingController(
-      text: record?.data['amount_text']?.toString() ?? '1인분',
+      text:
+          record?.data['amount_text']?.toString() ??
+          (widget.initialPhoto?.amountText?.isNotEmpty == true
+              ? widget.initialPhoto!.amountText!
+              : widget.initialPhoto?.productName != null
+              ? '1개'
+              : '1인분'),
     );
     _kcal = TextEditingController(
-      text: record == null ? '' : mealCalories(record).toString(),
+      text: record == null
+          ? (widget.initialPhoto?.energyKcal?.toString() ?? '')
+          : mealCalories(record).toString(),
     );
     _memo = TextEditingController(text: record?.data['memo']?.toString() ?? '');
     _mealType = record?.data['meal_type']?.toString() ?? 'meal';
@@ -116,8 +151,10 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
       return;
     }
     final user = ref.read(authRepositoryProvider).currentUser!;
-    final kcal = double.tryParse(_kcal.text.trim()) ?? 0;
-    if (!kcal.isFinite || kcal < 0) {
+    final parsedKcal = double.tryParse(_kcal.text.trim());
+    final kcal = parsedKcal ?? 0;
+    final calorieKnown = _kcal.text.trim().isNotEmpty;
+    if ((calorieKnown && parsedKcal == null) || !kcal.isFinite || kcal < 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('열량을 올바른 숫자로 입력해 주세요.')));
@@ -142,7 +179,8 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
         'photo_path': _newPhotoPath ?? _photoPath,
         'meal_type': _mealType,
         'amount_text': _amount.text.trim(),
-        'energy_kcal': kcal,
+        'energy_kcal': calorieKnown ? kcal : null,
+        'nutrition_known': calorieKnown,
         'small_meal': _smallMeal,
         'memo': _memo.text.trim(),
       };
@@ -152,9 +190,11 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
             'meal-${DateTime.now().microsecondsSinceEpoch}',
         userId: user.id,
         type: HealthRecordType.meal,
-        recordedAt: widget.record?.recordedAt ?? DateTime.now(),
+        recordedAt: _eatenAt,
         title: _food.text.trim(),
-        summary: '${_amount.text.trim()} · $kcal kcal',
+        summary: calorieKnown
+            ? '${_amount.text.trim()} · $kcal kcal'
+            : '${_amount.text.trim()} · 열량 미기록',
         data: data,
       );
       widget.record == null
@@ -188,11 +228,19 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
   @override
   Widget build(BuildContext context) => _RecordScaffold(
     title: widget.record == null ? '식사 직접 입력' : '식사 기록 수정',
-    description: 'AI 없이 음식명과 섭취량을 직접 기록해요.',
+    description: widget.initialPhoto?.productName != null
+        ? '사진에서 확인한 정보를 검토하고 부족한 내용을 입력해요.'
+        : 'AI 없이 음식명과 섭취량을 직접 기록해요.',
     saving: _saving || ref.watch(recordsProvider).isLoading,
     onSave: _save,
     child: Column(
       children: [
+        RecordDateTimeField(
+          label: '식사 시각',
+          value: _eatenAt,
+          onChanged: (v) => setState(() => _eatenAt = v),
+        ),
+        const SizedBox(height: 16),
         MealCategorySelector(
           value: _mealType,
           onChanged: (value) => setState(() => _mealType = value),

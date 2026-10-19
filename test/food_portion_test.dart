@@ -109,7 +109,25 @@ void main() {
     final router = GoRouter(
       initialLocation: '/capture',
       routes: [
-        GoRoute(path: '/capture', builder: (_, _) => const MealCapturePage()),
+        GoRoute(
+          path: '/capture',
+          builder: (_, _) => MealCapturePage(
+            publicLookup: (query, page) async => {
+              'status': 'candidates',
+              'candidates': [
+                {
+                  'id': 'fixture',
+                  'name': '집밥',
+                  'dataCode': 'D',
+                  'basis': {'value': 100, 'unit': 'g'},
+                  'packageSize': {'value': 500, 'unit': 'g'},
+                  'nutrition': {'energyKcal': 160},
+                  'source': {'recordId': 'fixture'},
+                },
+              ],
+            },
+          ),
+        ),
         GoRoute(
           path: '/timeline',
           builder: (_, _) => const Scaffold(body: Text('저장 완료')),
@@ -135,7 +153,8 @@ void main() {
     await tester.enterText(find.byType(TextField), '집밥');
     await tester.tap(find.text('영양정보 검색'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('집밥'));
+    await tester.ensureVisible(find.text('이 음식으로 기록하기'));
+    await tester.tap(find.text('이 음식으로 기록하기'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('소분해서 먹었어요'));
     await tester.tap(find.text('소분해서 먹었어요'));

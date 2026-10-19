@@ -407,3 +407,12 @@ entrypoint = "./functions/analyze-meal-image/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/nutrition-search/index.ts"
+[functions.product-nutrition]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/product-nutrition/index.ts"
+
+[functions.product-ingredients]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/product-ingredients/index.ts"

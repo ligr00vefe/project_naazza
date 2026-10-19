@@ -48,7 +48,11 @@ class InsightSummary {
         .where((r) => r.type == HealthRecordType.condition)
         .toList();
     final bowels = filtered
-        .where((r) => r.type == HealthRecordType.bowel)
+        .where(
+          (r) =>
+              r.type == HealthRecordType.bowel &&
+              r.data['had_bowel_movement'] != false,
+        )
         .toList();
     final activeDates = filtered.map((r) => _dateKey(r.recordedAt)).toSet();
     final normalDates = conditions

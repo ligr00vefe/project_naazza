@@ -57,8 +57,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/record/meal',
-        builder: (_, state) =>
-            MealRecordPage(record: state.extra as HealthRecord?),
+        builder: (_, state) => MealRecordPage(
+          record: state.extra is HealthRecord
+              ? state.extra as HealthRecord
+              : null,
+          initialPhoto: state.extra is ManualMealPhoto
+              ? state.extra as ManualMealPhoto
+              : null,
+        ),
       ),
       GoRoute(
         path: '/record/condition',

@@ -34,7 +34,9 @@ class _FoodSearchDialogState extends State<FoodSearchDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('검색하면 AI가 영양정보를 추정해요. 이름만 추가하면 열량은 미기록으로 남아요.'),
+        const Text(
+          '공공데이터에 등록된 영양정보를 조회해요. 정확한 음식·제품명을 입력해 주세요. 이름만 추가하면 열량은 미기록으로 남아요.',
+        ),
         const SizedBox(height: 16),
         TextField(
           controller: _name,

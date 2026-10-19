@@ -1,3 +1,4 @@
+import '../data/login_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _pin = TextEditingController();
   bool _isSignUp = false;
   bool _obscurePin = true;
+  bool _rememberId = false, _autoLogin = false, _settingsReady = false;
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final settings = await ref.read(loginPreferencesProvider);
+      if (!mounted) return;
+      setState(() {
+        _username.text = settings.username;
+        _rememberId = settings.rememberId;
+        _autoLogin = settings.autoLogin;
+        _settingsReady = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _settingsReady = true);
+    }
+  }
 
   @override
   void dispose() {
@@ -44,12 +66,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
-    if (!_validate()) return;
+    if (!_settingsReady ||
+        ref.read(authControllerProvider).isLoading ||
+        !_validate()) {
+      return;
+    }
     final controller = ref.read(authControllerProvider.notifier);
     if (_isSignUp) {
-      await controller.signUp(_username.text, _pin.text);
+      await controller.signUp(
+        _username.text,
+        _pin.text,
+        rememberId: _rememberId,
+        autoLogin: _autoLogin,
+      );
     } else {
-      await controller.signIn(_username.text, _pin.text);
+      await controller.signIn(
+        _username.text,
+        _pin.text,
+        rememberId: _rememberId,
+        autoLogin: _autoLogin,
+      );
     }
     if (!mounted) return;
     final error = ref.read(authControllerProvider).error;
@@ -96,6 +132,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   const SizedBox(height: 32),
                   TextField(
                     controller: _username,
+                    enabled: _settingsReady && !authState.isLoading,
                     autocorrect: false,
                     textCapitalization: TextCapitalization.none,
                     textInputAction: TextInputAction.next,
@@ -114,6 +151,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: _pin,
+                    enabled: _settingsReady && !authState.isLoading,
                     obscureText: _obscurePin,
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.done,
@@ -136,9 +174,39 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('아이디 저장'),
+                    value: _rememberId,
+                    onChanged: !_settingsReady || authState.isLoading
+                        ? null
+                        : (value) async {
+                            setState(() => _rememberId = value ?? false);
+                            if (!_rememberId) {
+                              await (await ref.read(
+                                loginPreferencesProvider,
+                              )).saveUsername('', false);
+                            }
+                          },
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('자동 로그인'),
+                    subtitle: const Text('다음 실행에도 로그인 상태를 유지해요.'),
+                    value: _autoLogin,
+                    onChanged: !_settingsReady || authState.isLoading
+                        ? null
+                        : (value) =>
+                              setState(() => _autoLogin = value ?? false),
+                  ),
                   const SizedBox(height: 20),
                   FilledButton(
-                    onPressed: authState.isLoading ? null : _submit,
+                    onPressed: !_settingsReady || authState.isLoading
+                        ? null
+                        : _submit,
                     child: authState.isLoading
                         ? const SizedBox.square(
                             dimension: 22,

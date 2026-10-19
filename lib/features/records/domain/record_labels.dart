@@ -15,7 +15,10 @@ String visitCategory(Object? value) => switch (value) {
   _ => '기타 방문',
 };
 String compactBowel(HealthRecord record) {
-  final parts = <String>[];
+  if (record.data['had_bowel_movement'] == false) {
+    return '변비 · 배변 못함';
+  }
+  final parts = <String>[if (record.data['constipation'] == true) '변비'];
   if (record.data['pain'] != null && record.data['pain'] != '없음') {
     parts.add('복통');
   }

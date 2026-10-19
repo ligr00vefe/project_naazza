@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { identifiedProducts } from '../supabase/functions/analyze-meal-image/identified_products.ts';
+const front = {name:'뉴케어 당플랜 호두맛', confidence:0.98, amountText:'200 ml', energyKcal:200, wholePackageEnergy:true};
+assert.deepEqual(identifiedProducts([front])[0], {name:front.name, confidence:.98, amountText:'200 ml', energyKcal:200});
+assert.equal(identifiedProducts([{...front, name:'퀴노아 크래커', amountText:'', energyKcal:null, wholePackageEnergy:false}])[0].energyKcal, null);
+assert.equal(identifiedProducts([{...front, wholePackageEnergy:false}])[0].energyKcal, null);
+assert.equal(identifiedProducts([{...front, energyKcal:NaN}])[0].energyKcal, null);
+assert.equal(identifiedProducts([{...front, confidence:0.4}]).length,0);
+assert.equal(identifiedProducts([{...front, name:''}]).length,0);
+assert.deepEqual(identifiedProducts(undefined),[]);
+console.log('Product identity survives absent nutrition; unknown or unverified calories stay null');

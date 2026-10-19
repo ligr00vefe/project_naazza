@@ -49,8 +49,12 @@ double mealCalories(HealthRecord record) {
   final items = (record.data['items'] as List? ?? []).whereType<Map>();
   return items.fold<double>(0, (sum, item) {
     final nutrition = item['nutrition'] as Map? ?? {};
-    final base = nutritionNumber(nutrition['base_amount_g']) ?? 0;
-    final amount = nutritionNumber(item['amount_g']) ?? 0;
+    final base =
+        nutritionNumber(
+          nutrition['base_amount'] ?? nutrition['base_amount_g'],
+        ) ??
+        0;
+    final amount = nutritionNumber(item['amount'] ?? item['amount_g']) ?? 0;
     final energy = nutritionNumber(nutrition['energy_kcal']) ?? 0;
     return sum +
         (base.isFinite &&

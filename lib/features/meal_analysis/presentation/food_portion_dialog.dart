@@ -104,14 +104,22 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
             if (_enabled) ...[
               const Text('포장 전체 용량과 열량을 확인한 뒤 먹은 양을 입력해 주세요.'),
               const SizedBox(height: 16),
-              _field(_total, widget.food.isProduct ? '1개 전체 용량' : '전체 용량', 'g'),
+              _field(
+                _total,
+                widget.food.isProduct ? '1개 전체 용량' : '전체 용량',
+                widget.food.amountUnit,
+              ),
               _field(
                 _calories,
                 widget.food.isProduct ? '1개 전체 열량' : '전체 열량',
                 'kcal',
               ),
             ],
-            _field(_consumed, widget.food.isProduct ? '1개당 먹은 양' : '먹은 양', 'g'),
+            _field(
+              _consumed,
+              widget.food.isProduct ? '1개당 먹은 양' : '먹은 양',
+              widget.food.amountUnit,
+            ),
             Text(
               _preview == null
                   ? '입력값을 확인해 주세요.'
@@ -161,7 +169,7 @@ class FoodPortionControl extends StatelessWidget {
     title: const Text('소분해서 먹었어요'),
     subtitle: food.portioned
         ? Text(
-            '전체 ${food.wholeAmountG}g 중 ${food.amountG}g · ${(food.amountG / food.wholeAmountG * 100).toStringAsFixed(1)}%',
+            '전체 ${food.wholeAmountG}${food.amountUnit} 중 ${food.amountG}${food.amountUnit} · ${(food.amountG / food.wholeAmountG * 100).toStringAsFixed(1)}%',
           )
         : null,
     value: food.portioned,

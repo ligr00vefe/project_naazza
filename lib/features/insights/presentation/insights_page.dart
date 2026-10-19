@@ -1,3 +1,4 @@
+import 'fasting_insight_card.dart';
 import '../../../core/widgets/word_wrap_text.dart';
 import '../../../core/widgets/main_navigation_bar.dart';
 import 'dart:math' as math;
@@ -47,6 +48,8 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
                   ],
                 ),
                 const SizedBox(height: 18),
+                FastingInsightCard(records: records),
+                const SizedBox(height: 14),
                 if (summary.totalRecords == 0)
                   _EmptyInsight(onRecord: () => context.push('/record'))
                 else ...[
