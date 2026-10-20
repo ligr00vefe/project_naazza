@@ -1,4 +1,7 @@
+import '../../features/insights/presentation/nutrient_day_page.dart';
+import '../../features/auth/presentation/personal_info_page.dart';
 import '../../features/records/presentation/alcohol_record_page.dart';
+import '../../features/records/presentation/water_record_page.dart';
 import '../../features/records/presentation/record_detail_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +13,7 @@ import '../../features/insights/presentation/insights_page.dart';
 import '../../features/meal_analysis/presentation/meal_capture_page.dart';
 import '../../features/meal_analysis/presentation/barcode_scanner_page.dart';
 import '../../features/records/domain/health_record.dart';
+import '../../features/records/domain/record_draft_date.dart';
 import '../../features/records/presentation/bowel_record_page.dart';
 import '../../features/records/presentation/condition_record_page.dart';
 import '../../features/records/presentation/meal_record_page.dart';
@@ -35,29 +39,58 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/tracking-profile',
         builder: (_, _) => const TrackingProfilePage(editing: true),
       ),
+      GoRoute(
+        path: '/personal-info',
+        builder: (_, _) => const PersonalInfoPage(),
+      ),
       GoRoute(path: '/home', builder: (_, _) => const HomePage()),
       GoRoute(path: '/export', builder: (_, _) => const ExportPage()),
       GoRoute(
         path: '/settings',
         builder: (_, _) => const AccessibilitySettingsPage(),
       ),
-      GoRoute(path: '/record', builder: (_, _) => const RecordHubPage()),
+      GoRoute(
+        path: '/record',
+        builder: (_, s) => RecordHubPage(
+          initialRecordedAt: parseRecordDraftDate(s.uri.queryParameters['at']),
+        ),
+      ),
       GoRoute(
         path: '/record/alcohol',
-        builder: (_, state) =>
-            AlcoholRecordPage(record: state.extra as HealthRecord?),
+        builder: (_, state) => AlcoholRecordPage(
+          record: state.extra as HealthRecord?,
+          initialRecordedAt: parseRecordDraftDate(
+            state.uri.queryParameters['at'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/record/water',
+        builder: (_, state) => WaterRecordPage(
+          record: state.extra as HealthRecord?,
+          initialRecordedAt: parseRecordDraftDate(
+            state.uri.queryParameters['at'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/record/meal-photo',
-        builder: (_, _) => const MealCapturePage(),
+        builder: (_, s) => MealCapturePage(
+          initialRecordedAt: parseRecordDraftDate(s.uri.queryParameters['at']),
+        ),
       ),
       GoRoute(
         path: '/record/barcode',
-        builder: (_, _) => const BarcodeScannerPage(),
+        builder: (_, s) => BarcodeScannerPage(
+          initialRecordedAt: parseRecordDraftDate(s.uri.queryParameters['at']),
+        ),
       ),
       GoRoute(
         path: '/record/meal',
         builder: (_, state) => MealRecordPage(
+          initialRecordedAt: parseRecordDraftDate(
+            state.uri.queryParameters['at'],
+          ),
           record: state.extra is HealthRecord
               ? state.extra as HealthRecord
               : null,
@@ -68,18 +101,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/record/condition',
-        builder: (_, state) =>
-            ConditionRecordPage(record: state.extra as HealthRecord?),
+        builder: (_, state) => ConditionRecordPage(
+          record: state.extra as HealthRecord?,
+          initialRecordedAt: parseRecordDraftDate(
+            state.uri.queryParameters['at'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/record/bowel',
-        builder: (_, state) =>
-            BowelRecordPage(record: state.extra as HealthRecord?),
+        builder: (_, state) => BowelRecordPage(
+          record: state.extra as HealthRecord?,
+          initialRecordedAt: parseRecordDraftDate(
+            state.uri.queryParameters['at'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/record/visit',
-        builder: (_, state) =>
-            VisitRecordPage(record: state.extra as HealthRecord?),
+        builder: (_, state) => VisitRecordPage(
+          record: state.extra as HealthRecord?,
+          initialRecordedAt: parseRecordDraftDate(
+            state.uri.queryParameters['at'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/visit/preparation',
@@ -95,6 +140,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/timeline/meal',
         builder: (_, state) => MealGroupPage(group: state.extra! as MealGroup),
+      ),
+      GoRoute(
+        path: '/nutrition-day',
+        builder: (_, state) => NutrientDayPage(day: state.extra! as DateTime),
       ),
       GoRoute(path: '/insights', builder: (_, _) => const InsightsPage()),
       GoRoute(

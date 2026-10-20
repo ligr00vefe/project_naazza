@@ -1,3 +1,9 @@
+import '../../../app/theme/app_colors.dart';
+import '../../insights/presentation/nutrient_insight_card.dart';
+import '../../insights/domain/calendar_nutrition.dart';
+import '../../auth/domain/auth_user.dart';
+import '../../auth/data/auth_repository.dart';
+import 'nutrition_mood_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +11,7 @@ import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/word_wrap_text.dart';
 import '../../../app/theme/app_design.dart';
 import '../domain/health_record.dart';
+import '../domain/record_draft_date.dart';
 import '../domain/meal_group.dart';
 import '../domain/record_labels.dart';
 import 'records_controller.dart';
@@ -23,7 +30,8 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
   bool _showVisits = true,
       _showBowel = true,
       _showCondition = true,
-      _showAlcohol = true;
+      _showAlcohol = true,
+      _showWater = true;
 
   Future<void> _filters() => showModalBottomSheet<void>(
     context: context,
@@ -31,82 +39,96 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
     useSafeArea: true,
     showDragHandle: true,
     builder: (context) => StatefulBuilder(
-      builder: (context, update) => SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('표시할 기록', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 10,
-              children: [
-                ChoiceChip(
-                  label: const Text('모든 식사'),
-                  selected: _category == null,
-                  onSelected: (_) {
-                    setState(() => _category = null);
-                    update(() {});
-                  },
-                ),
-                for (final category in MealCategory.values)
-                  ChoiceChip(
-                    label: Text('${category.label}만 보기'),
-                    selected: _category == category,
-                    onSelected: (_) {
-                      setState(() => _category = category);
-                      update(() {});
-                    },
+      builder: (context, update) {
+        Widget toggle(
+          String title,
+          bool value,
+          ValueChanged<bool> change, {
+          String? subtitle,
+        }) => CheckboxListTile(
+          title: Text(title),
+          subtitle: subtitle == null ? null : Text(subtitle),
+          value: value,
+          onChanged: (v) {
+            setState(() => change(v!));
+            update(() {});
+          },
+        );
+        return SizedBox(
+          height: MediaQuery.sizeOf(context).height * .85,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '표시할 기록',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 10,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('모든 식사'),
+                            selected: _category == null,
+                            onSelected: (_) {
+                              setState(() => _category = null);
+                              update(() {});
+                            },
+                          ),
+                          for (final category in MealCategory.values)
+                            ChoiceChip(
+                              label: Text('${category.label}만 보기'),
+                              selected: _category == category,
+                              onSelected: (_) {
+                                setState(() => _category = category);
+                                update(() {});
+                              },
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      toggle('배변 기록 표시하기', _showBowel, (v) => _showBowel = v),
+                      toggle(
+                        '검진 기록 표시하기',
+                        _showVisits,
+                        (v) => _showVisits = v,
+                        subtitle: '진료·검진·검사·문진·방문 모두 포함',
+                      ),
+                      toggle(
+                        '음주 기록 표시하기',
+                        _showAlcohol,
+                        (v) => _showAlcohol = v,
+                      ),
+                      toggle('물 기록 표시하기', _showWater, (v) => _showWater = v),
+                      toggle(
+                        '컨디션 기록 표시하기',
+                        _showCondition,
+                        (v) => _showCondition = v,
+                      ),
+                    ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            CheckboxListTile(
-              title: const Text('배변 기록 표시하기'),
-              value: _showBowel,
-              onChanged: (v) {
-                setState(() => _showBowel = v!);
-                update(() {});
-              },
-            ),
-            CheckboxListTile(
-              title: const Text('검진 기록 표시하기'),
-              subtitle: const Text('진료·검진·검사·문진·방문 모두 포함'),
-              value: _showVisits,
-              onChanged: (v) {
-                setState(() => _showVisits = v!);
-                update(() {});
-              },
-            ),
-            CheckboxListTile(
-              title: const Text('음주 기록 표시하기'),
-              value: _showAlcohol,
-              onChanged: (v) {
-                setState(() => _showAlcohol = v!);
-                update(() {});
-              },
-            ),
-            CheckboxListTile(
-              title: const Text('컨디션 기록 표시하기'),
-              value: _showCondition,
-              onChanged: (v) {
-                setState(() => _showCondition = v!);
-                update(() {});
-              },
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('완료'),
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.all(20),
+                child: FilledButton(
+                  key: const ValueKey('calendar-filter-done'),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('완료'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 
@@ -114,6 +136,9 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(recordsProvider);
     final records = state.value ?? [];
+    final user =
+        ref.watch(authStateProvider).value ??
+        ref.read(authRepositoryProvider).currentUser;
     final selected =
         records
             .where(
@@ -129,7 +154,6 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
           ..sort(compareMealGroups);
     return AppPage(
       title: '기록 캘린더',
-      subtitle: '날짜별 식사와 컨디션을 함께 살펴봐요.',
       selectedIndex: 1,
       actions: [
         TextButton(
@@ -203,15 +227,24 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        _monthGrid(records),
+                        _monthGrid(records, user),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 10,
                           runSpacing: 6,
                           children: [
-                            const _CalendarLegend('식사', Colors.green),
+                            Tooltip(
+                              message:
+                                  '90% 이상: 웃는 표정 · 80~89%: 옅은 미소 · 70~79%: 무표정 · 70% 미만: 아쉬움 · 정보 부족: 물음표. 확인된 성분을 각각 최대 100%로 반영한 평균이며, 정보 없는 성분은 제외해요.',
+                              triggerMode: TooltipTriggerMode.tap,
+                              child: const _CalendarLegend(
+                                '영양 기준',
+                                AppColors.secondary,
+                                icon: Icons.sentiment_satisfied_alt_outlined,
+                              ),
+                            ),
                             if (_showBowel)
-                              const _CalendarLegend('배변', Colors.orange),
+                              const _CalendarLegend('배변', Color(0xFFD47A24)),
                             if (_showVisits)
                               const _CalendarLegend(
                                 '검진·방문',
@@ -226,6 +259,12 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                               ),
                             if (_showCondition)
                               const _CalendarLegend('컨디션', Colors.purple),
+                            if (_showWater)
+                              const _CalendarLegend(
+                                '물',
+                                Colors.lightBlue,
+                                icon: Icons.water_drop_outlined,
+                              ),
                           ],
                         ),
                       ],
@@ -234,7 +273,48 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                 ),
                 const SizedBox(height: 20),
                 AppSectionHeader('${_selected.month}월 ${_selected.day}일'),
+                if (!_selected.isAfter(DateUtils.dateOnly(DateTime.now())))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      key: const ValueKey('calendar-add-record'),
+                      onPressed: () => context.push(
+                        recordDateRoute(
+                          '/record',
+                          calendarDraftTime(_selected),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('이 날짜에 기록하기'),
+                    ),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: WordWrapText(
+                      '오늘과 지난 날짜에 기록을 추가할 수 있어요.',
+                      style: AppDesign.caption,
+                    ),
+                  ),
+                if (selected.any((r) => r.type == HealthRecordType.meal))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: WordWrapText(
+                      CalendarNutrition.fromRecords(
+                        selected,
+                        user,
+                        _selected,
+                      ).description,
+                      style: AppDesign.caption,
+                    ),
+                  ),
                 const SizedBox(height: 20),
+                NutrientInsightCard(
+                  records: records,
+                  day: _selected,
+                  compact: true,
+                ),
+                const SizedBox(height: 16),
                 _heading('식사 기록'),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -270,6 +350,10 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                   _heading('음주 기록'),
                   ..._recordList(selected, HealthRecordType.alcohol),
                 ],
+                if (_showWater) ...[
+                  _heading('물 마시기'),
+                  ..._recordList(selected, HealthRecordType.water),
+                ],
                 if (_showCondition) ...[
                   _heading('컨디션 기록'),
                   ..._recordList(selected, HealthRecordType.condition),
@@ -301,12 +385,15 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
               HealthRecordType.bowel => compactBowel(record),
               HealthRecordType.condition => compactCondition(record),
               HealthRecordType.alcohol => record.title,
+              HealthRecordType.water => '${record.data['cups']}컵',
               _ =>
                 record.data['facility_label']?.toString().isNotEmpty == true
                     ? record.data['facility_label'].toString()
                     : '기관 미기록',
             },
-            subtitle: type == HealthRecordType.visit
+            subtitle: type == HealthRecordType.water
+                ? '하루 마신 물'
+                : type == HealthRecordType.visit
                 ? [
                     recordTime(record.recordedAt),
                     if (record.data['department']?.toString().isNotEmpty ==
@@ -324,7 +411,7 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
     ];
   }
 
-  Widget _monthGrid(List<HealthRecord> records) {
+  Widget _monthGrid(List<HealthRecord> records, AuthUser? user) {
     final offset = _month.weekday % 7;
     final days = DateTime(_month.year, _month.month + 1, 0).day;
     final count = ((offset + days) / 7).ceil() * 7;
@@ -334,16 +421,17 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
-        mainAxisExtent: (scale * 1.6 + 24).clamp(44, double.infinity),
+        mainAxisExtent: scale * 1.35 + 44,
       ),
       itemCount: count,
       itemBuilder: (context, index) {
         final day = index - offset + 1;
         if (day < 1 || day > days) return const SizedBox.shrink();
         final date = DateTime(_month.year, _month.month, day);
-        final dayRecords = records.where(
-          (r) => DateUtils.isSameDay(r.recordedAt.toLocal(), date),
-        );
+        final dayRecords = records
+            .where((r) => DateUtils.isSameDay(r.recordedAt.toLocal(), date))
+            .toList();
+        final nutrition = CalendarNutrition.fromRecords(dayRecords, user, date);
         final meal = dayRecords.any(
           (r) =>
               r.type == HealthRecordType.meal &&
@@ -363,8 +451,12 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
             _showAlcohol &&
             dayRecords.any((r) => r.type == HealthRecordType.alcohol);
         final active = DateUtils.isSameDay(date, _selected);
+        final water =
+            _showWater &&
+            dayRecords.any((r) => r.type == HealthRecordType.water);
         return Semantics(
-          label: '${date.month}월 $day일${visit ? ', 검진 기록 있음' : ''}',
+          label:
+              '${date.month}월 $day일${meal ? ', ${nutrition.description}' : ''}${visit ? ', 검진 기록 있음' : ''}${alcohol ? ', 음주 기록 있음' : ''}${bowel ? ', 배변 기록 있음' : ''}${condition ? ', 컨디션 기록 있음' : ''}${water ? ', 물 기록 있음' : ''}',
           selected: active,
           button: true,
           child: InkWell(
@@ -373,10 +465,8 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
             child: Container(
               margin: const EdgeInsets.all(1),
               decoration: BoxDecoration(
-                color: active
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : null,
-                borderRadius: BorderRadius.circular(8),
+                color: active ? AppColors.blueSurface : null,
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -386,33 +476,72 @@ class _RecordsCalendarPageState extends ConsumerState<RecordsCalendarPage> {
                     softWrap: false,
                     style: const TextStyle(fontSize: 13),
                   ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 2,
-                    runSpacing: 2,
-                    children: [
-                      if (meal)
-                        const Icon(Icons.circle, size: 5, color: Colors.green),
-                      if (bowel)
-                        const Icon(Icons.circle, size: 5, color: Colors.orange),
-                      if (condition)
-                        const Icon(Icons.circle, size: 5, color: Colors.purple),
-                      if (alcohol)
-                        Icon(
-                          Icons.sports_bar,
-                          key: ValueKey('alcohol-marker-$day'),
-                          size: 14,
-                          color: Colors.amber.shade800,
-                        ),
-                      if (visit)
-                        Icon(
-                          Icons.local_hospital,
-                          key: ValueKey('visit-marker-$day'),
-                          size: 14,
-                          color: Colors.blue,
-                        ),
-                    ],
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: 14,
+                    child: meal
+                        ? NutritionMoodIcon(
+                            key: ValueKey('nutrition-mood-$day'),
+                            mood: nutrition.mood,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: 10,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (alcohol)
+                          Icon(
+                            Icons.sports_bar,
+                            key: ValueKey('alcohol-marker-$day'),
+                            size: 10,
+                            color: Colors.amber.shade800,
+                          ),
+                        if (alcohol && visit) const SizedBox(width: 2),
+                        if (visit)
+                          Icon(
+                            Icons.local_hospital,
+                            key: ValueKey('visit-marker-$day'),
+                            size: 10,
+                            color: Colors.blue,
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: 7,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (bowel)
+                          Icon(
+                            Icons.circle,
+                            size: 5,
+                            key: ValueKey('bowel-marker-$day'),
+                            color: const Color(0xFFD47A24),
+                          ),
+                        if (bowel && condition) const SizedBox(width: 3),
+                        if (condition)
+                          Icon(
+                            Icons.circle,
+                            size: 5,
+                            key: ValueKey('condition-marker-$day'),
+                            color: Colors.purple,
+                          ),
+                        if (water && (bowel || condition))
+                          const SizedBox(width: 3),
+                        if (water)
+                          Icon(
+                            Icons.water_drop,
+                            key: ValueKey('water-marker-$day'),
+                            size: 9,
+                            color: Colors.lightBlue,
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),

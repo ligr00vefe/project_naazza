@@ -47,7 +47,12 @@ void main() {
           ?.text,
       '125',
     );
-    await tester.ensureVisible(find.text('주종 추가'));
+    await tester.scrollUntilVisible(
+      find.text('주종 추가'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('주종 추가'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byTooltip('주종 삭제').last);
@@ -157,7 +162,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('맥주컵 300 (300 cc)'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('주종 추가'));
+    await tester.scrollUntilVisible(
+      find.text('주종 추가'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('주종 추가'));
     await tester.pumpAndSettle();
     final lastContainer = find.byType(DropdownButtonFormField<String>).last;

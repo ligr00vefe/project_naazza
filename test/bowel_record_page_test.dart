@@ -60,6 +60,70 @@ Future<GoRouter> openPage(
 }
 
 void main() {
+  testWidgets('중복 변비 스위치는 없고 배변 선택으로 돌아오면 변비가 해제된다', (tester) async {
+    final repository = DemoRecordsRepository();
+    final router = await openPage(tester, repository);
+    addTearDown(router.dispose);
+    expect(find.text('변비가 있었어요'), findsNothing);
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '배변했어요'))
+          .selected,
+      true,
+    );
+    await tester.tap(find.widgetWithText(ChoiceChip, '변비 · 배변 못함'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BowelFormSelector), findsNothing);
+    await tester.tap(find.widgetWithText(ChoiceChip, '배변했어요'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('기록 저장하기'));
+    await tester.pumpAndSettle();
+    final saved = (await repository.list('demo-user')).single;
+    expect(saved.data['had_bowel_movement'], true);
+    expect(saved.data['constipation'], false);
+    expect(saved.summary, isNot(contains('변비')));
+  });
+  testWidgets('배변 못함을 직접 선택한 경우에만 새 변비 기록이 저장된다', (tester) async {
+    final repository = DemoRecordsRepository();
+    final router = await openPage(tester, repository);
+    addTearDown(router.dispose);
+    await tester.tap(find.widgetWithText(ChoiceChip, '변비 · 배변 못함'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('기록 저장하기'));
+    await tester.pumpAndSettle();
+    final saved = (await repository.list('demo-user')).single;
+    expect(saved.data['had_bowel_movement'], false);
+    expect(saved.data['constipation'], true);
+    expect(saved.data['bristol_type'], isNull);
+  });
+  testWidgets('혈변 체크를 저장하고 다시 해제할 수 있다', (tester) async {
+    final repository = DemoRecordsRepository();
+    final router = await openPage(tester, repository);
+    addTearDown(router.dispose);
+    final toggle = find.byKey(const ValueKey('blood-in-stool'));
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('기록 저장하기'));
+    await tester.pumpAndSettle();
+    final saved = (await repository.list('demo-user')).single;
+    expect(saved.data['blood_in_stool'], true);
+    expect(saved.summary, contains('혈변'));
+    final editRouter = await openPage(tester, repository, record: saved);
+    addTearDown(editRouter.dispose);
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(toggle).value, true);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('기록 저장하기'));
+    await tester.pumpAndSettle();
+    final edited = (await repository.list('demo-user')).single;
+    expect(edited.data['blood_in_stool'], false);
+    expect(edited.summary, isNot(contains('혈변')));
+  });
+
   testWidgets('새 기록은 4번이 기본 선택되고 그대로 저장된다', (tester) async {
     final repository = DemoRecordsRepository();
     final router = await openPage(tester, repository);
@@ -140,6 +204,7 @@ void main() {
     expect(saved.id, record.id);
     expect(saved.recordedAt, recordedAt);
     expect(saved.data['memo'], '기존 메모');
+    expect(saved.data['blood_in_stool'], isNull);
     expect(saved.data['bristol_type'], 7);
     expect(saved.summary, '물처럼 묽음 · 보통');
     expect(tester.takeException(), isNull);
@@ -170,7 +235,8 @@ void main() {
     final router = await openPage(tester, DemoRecordsRepository());
     addTearDown(router.dispose);
     expect(find.text('작고 단단한 조각이 따로 있어요'), findsNothing);
-    expect(find.text('딱딱한 조각'), findsOneWidget);
+    expect(find.text('4 · 매끈하고 부드러움'), findsOneWidget);
+    expect(find.byKey(const ValueKey('bowel-form-1')), findsOneWidget);
     final help = find.byKey(const ValueKey('bowel-form-help'));
     await tester.ensureVisible(help);
     await tester.pumpAndSettle();

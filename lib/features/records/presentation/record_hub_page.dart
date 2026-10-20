@@ -1,51 +1,77 @@
-import '../../../core/widgets/main_navigation_bar.dart';
+import '../../../core/widgets/app_page.dart';
+import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_design.dart';
+import '../domain/record_draft_date.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class RecordHubPage extends StatelessWidget {
-  const RecordHubPage({super.key});
+  const RecordHubPage({super.key, this.initialRecordedAt});
+  final DateTime? initialRecordedAt;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    bottomNavigationBar: const MainNavigationBar(selectedIndex: 2),
-    appBar: AppBar(title: const Text('기록하기')),
+  Widget build(BuildContext context) => AppPage(
+    title: '기록하기',
+    selectedIndex: 2,
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text('어떤 기록을 남길까요?', style: Theme.of(context).textTheme.headlineMedium),
+        const Text('어떤 기록을 남길까요?', style: AppDesign.sectionTitle),
+        if (initialRecordedAt != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${initialRecordedAt!.year}.${initialRecordedAt!.month}.${initialRecordedAt!.day} 기록',
+          ),
+        ],
         const SizedBox(height: 18),
         _RecordChoice(
-          icon: Icons.restaurant_rounded,
+          icon: Icons.restaurant_outlined,
           title: '식사 기록',
           subtitle: '사진 분석 또는 직접 입력',
-          onTap: () => context.push('/record/meal-photo'),
+          onTap: () => context.push(
+            recordDateRoute('/record/meal-photo', initialRecordedAt),
+          ),
         ),
         const SizedBox(height: 12),
         _RecordChoice(
-          icon: Icons.health_and_safety_rounded,
+          icon: Icons.sentiment_satisfied_alt_outlined,
           title: '컨디션·증상 기록',
-          subtitle: '이상 없음·증상·건너뛰기 구분',
-          onTap: () => context.push('/record/condition'),
+          subtitle: '몸 상태와 증상을 기록해요',
+          onTap: () => context.push(
+            recordDateRoute('/record/condition', initialRecordedAt),
+          ),
         ),
         const SizedBox(height: 12),
         _RecordChoice(
-          icon: Icons.circle_rounded,
+          icon: Icons.spa_outlined,
           title: '배변 기록',
-          subtitle: '형태를 보고 쉽게 선택하는 배변 기록',
-          onTap: () => context.push('/record/bowel'),
+          subtitle: '배변 상태를 기록해요',
+          onTap: () =>
+              context.push(recordDateRoute('/record/bowel', initialRecordedAt)),
         ),
         const SizedBox(height: 12),
         _RecordChoice(
-          icon: Icons.medical_services_rounded,
+          icon: Icons.monitor_heart_outlined,
           title: '진료/내원 기록',
-          subtitle: '검사·상담·처방 변경과 다음 일정',
-          onTap: () => context.push('/record/visit'),
+          subtitle: '진료 일정과 내원 내역을 기록해요',
+          onTap: () =>
+              context.push(recordDateRoute('/record/visit', initialRecordedAt)),
         ),
         const SizedBox(height: 12),
         _RecordChoice(
           icon: Icons.sports_bar,
           title: '음주 기록',
           subtitle: '주종·잔 수·용량 기록',
-          onTap: () => context.push('/record/alcohol'),
+          onTap: () => context.push(
+            recordDateRoute('/record/alcohol', initialRecordedAt),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _RecordChoice(
+          icon: Icons.local_drink_outlined,
+          title: '물 마시기',
+          subtitle: '하루 마신 물을 컵으로 기록',
+          onTap: () =>
+              context.push(recordDateRoute('/record/water', initialRecordedAt)),
         ),
       ],
     ),
@@ -64,13 +90,15 @@ class _RecordChoice extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      contentPadding: const EdgeInsets.all(18),
-      leading: CircleAvatar(child: Icon(icon)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
+  Widget build(BuildContext context) => AppCard(
+    padding: EdgeInsets.zero,
+    child: AppListRow(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      iconColor: icon == Icons.sports_bar
+          ? AppColors.secondary
+          : AppColors.primary,
       onTap: onTap,
     ),
   );

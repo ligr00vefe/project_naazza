@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import 'ingredient_details_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +17,7 @@ class MealGroupPage extends ConsumerWidget {
     final records = (state.value ?? []).where(group.contains).toList()
       ..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
     final total = records.fold<double>(0, (sum, r) => sum + mealCalories(r));
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(
         title: Text(
           '${group.day.month}월 ${group.day.day}일 ${group.category.label}',
@@ -53,6 +54,7 @@ class _MealDetails extends ConsumerWidget {
         .toList();
     final date = record.recordedAt.toLocal();
     return Card(
+      margin: const EdgeInsets.only(bottom: 14),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

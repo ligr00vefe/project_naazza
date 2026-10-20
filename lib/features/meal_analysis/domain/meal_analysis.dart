@@ -94,8 +94,12 @@ class FoodCandidate {
     );
   }
 
-  double? _recordNutrient(String field, double currentValue) {
-    if (hasCompleteNutrition) return currentValue;
+  double? _recordNutrient(
+    String field,
+    double currentValue, {
+    bool sourceOnly = false,
+  }) {
+    if (hasCompleteNutrition && !sourceOnly) return currentValue;
     final source = nutritionSource;
     final values = source?['nutrition'];
     final basis = source?['basis'];
@@ -146,6 +150,22 @@ class FoodCandidate {
       'protein_g': _recordNutrient('proteinG', nutrition.proteinG),
       'fat_g': _recordNutrient('fatG', nutrition.fatG),
       'sodium_mg': _recordNutrient('sodiumMg', nutrition.sodiumMg),
+      for (final entry in const {
+        'calcium_mg': 'calciumMg',
+        'iron_mg': 'ironMg',
+        'vitamin_c_mg': 'vitaminC',
+        'vitamin_d_ug': 'vitaminD',
+        'fiber_g': 'fiberG',
+        'potassium_mg': 'potassiumMg',
+        'phosphorus_mg': 'phosphorusMg',
+        'vitamin_a_rae': 'vitaminA',
+        'thiamin_mg': 'thiaminMg',
+        'riboflavin_mg': 'riboflavinMg',
+        'niacin_mg': 'niacinMg',
+      }.entries)
+        entry.key: nutritionSource == null
+            ? null
+            : _recordNutrient(entry.value, 0, sourceOnly: true),
     },
   };
 }

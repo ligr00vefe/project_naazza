@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../features/insights/data/food_watch_repository.dart';
 import '../../features/auth/data/login_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,12 +20,14 @@ class BootstrapDependencies {
     required this.trackingProfileRepository,
     required this.recordsRepository,
     required this.mealAnalysisRepository,
+    required this.foodWatchRepository,
   });
   final AppConfig config;
   final AuthRepository authRepository;
   final TrackingProfileRepository trackingProfileRepository;
   final RecordsRepository recordsRepository;
   final MealAnalysisRepository mealAnalysisRepository;
+  final FoodWatchRepository foodWatchRepository;
 }
 
 Future<BootstrapDependencies> bootstrap() async {
@@ -60,5 +63,6 @@ Future<BootstrapDependencies> bootstrap() async {
     trackingProfileRepository: trackingRepository,
     recordsRepository: recordsRepository,
     mealAnalysisRepository: mealAnalysisRepository,
+    foodWatchRepository: SupabaseFoodWatchRepository(client),
   );
 }

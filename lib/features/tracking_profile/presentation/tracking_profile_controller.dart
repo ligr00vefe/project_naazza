@@ -11,9 +11,11 @@ final trackingProfileProvider =
 class TrackingProfileController extends AsyncNotifier<TrackingProfile?> {
   @override
   Future<TrackingProfile?> build() async {
-    final user = ref.watch(authStateProvider).value;
-    if (user == null) return null;
-    return ref.read(trackingProfileRepositoryProvider).load(user.id);
+    final userId = ref.watch(
+      authStateProvider.select((state) => state.value?.id),
+    );
+    if (userId == null) return null;
+    return ref.read(trackingProfileRepositoryProvider).load(userId);
   }
 
   Future<void> save(TrackingProfile profile) async {

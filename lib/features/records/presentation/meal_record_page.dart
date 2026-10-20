@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/widgets/record_datetime_field.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -33,10 +34,12 @@ class MealRecordPage extends ConsumerStatefulWidget {
     this.record,
     this.pickImage,
     this.initialPhoto,
+    this.initialRecordedAt,
   });
   final ManualMealPhoto? initialPhoto;
   final Future<XFile?> Function(ImageSource source)? pickImage;
   final HealthRecord? record;
+  final DateTime? initialRecordedAt;
   @override
   ConsumerState<MealRecordPage> createState() => _MealRecordPageState();
 }
@@ -60,7 +63,10 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
     _photoBytes = widget.initialPhoto?.bytes;
     _filename = widget.initialPhoto?.filename ?? 'meal.jpg';
     final record = widget.record;
-    _eatenAt = record?.recordedAt.toLocal() ?? DateTime.now();
+    _eatenAt =
+        record?.recordedAt.toLocal() ??
+        widget.initialRecordedAt ??
+        DateTime.now();
     _food = TextEditingController(
       text: record?.title ?? widget.initialPhoto?.productName ?? '',
     );
@@ -184,6 +190,14 @@ class _MealRecordPageState extends ConsumerState<MealRecordPage> {
         'small_meal': _smallMeal,
         'memo': _memo.text.trim(),
       };
+      final previous = widget.record;
+      if (previous != null &&
+          (_food.text.trim() != previous.title ||
+              _amount.text.trim() != previous.data['amount_text'] ||
+              kcal != mealCalories(previous))) {
+        data.remove('items');
+        data.remove('nutrition_day_signature');
+      }
       final record = HealthRecord(
         id:
             widget.record?.id ??
@@ -331,7 +345,7 @@ class _RecordScaffold extends StatelessWidget {
   final bool saving;
   final VoidCallback onSave;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(title: Text(title)),
     body: ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

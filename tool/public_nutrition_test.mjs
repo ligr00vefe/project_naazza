@@ -4,6 +4,18 @@ import { normalizePublicRow, lookupPublicNutrition, amount } from '../supabase/f
 // Synthetic fixture; not the real nutrition of any commercial product.
 const row = { foodCd: 'fixture-1', foodNm: '테스트 제품', nutConSrtrQua: '100g', foodSize: '250g', enerc: '200', nat: '', prot: '0', mkrNm: '테스트 제조사', crtrYmd: '2026-10-01' }
 const ok = (items = [row], totalCount = items.length) => new Response(JSON.stringify({ response: { header: { resultCode: '00' }, body: { items, totalCount } } }))
+
+test('extra micronutrients retain provider units and missing values, never infer NE', () => {
+ const item = normalizePublicRow({...row,k:'100',p:'20',vitaRae:'50',thia:'0.2',ribf:'0',nia:'3'},'today')
+ assert.equal(item.nutrition.potassiumMg,100)
+ assert.equal(item.nutrition.phosphorusMg,20)
+ assert.equal(item.nutrition.vitaminA,50)
+ assert.equal(item.nutrition.thiaminMg,.2)
+ assert.equal(item.nutrition.riboflavinMg,0)
+ assert.equal(item.nutrition.niacinMg,3)
+ assert.equal(normalizePublicRow(row,'today').nutrition.thiaminMg,null)
+ assert.equal(item.nutrition.niacinEquivalentMg,undefined)
+})
 test('source and missing/zero nutrients remain distinct; same-unit package math', () => {
  const item = normalizePublicRow(row, 'today')
  assert.equal(item.packageEnergyKcal, 500)

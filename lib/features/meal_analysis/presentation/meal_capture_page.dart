@@ -1,4 +1,6 @@
+import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/widgets/record_datetime_field.dart';
+import '../../records/domain/record_draft_date.dart';
 import 'public_product_dialog.dart';
 import '../domain/photo_food_resolution.dart';
 import '../../records/presentation/meal_record_page.dart';
@@ -26,8 +28,10 @@ class MealCapturePage extends ConsumerStatefulWidget {
     this.pickImage,
     this.autoLookup = true,
     this.publicLookup,
+    this.initialRecordedAt,
   });
   final bool autoLookup;
+  final DateTime? initialRecordedAt;
   final PublicProductLookup? publicLookup;
   final Future<XFile?> Function(ImageSource source)? pickImage;
   @override
@@ -56,6 +60,12 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   String _mealType = 'meal';
   bool _saved = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _eatenAt = widget.initialRecordedAt ?? DateTime.now();
+  }
 
   Future<void> _pick(ImageSource source) async {
     try {
@@ -253,7 +263,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
         ? _identifiedProducts.first
         : null;
     context.push(
-      '/record/meal',
+      recordDateRoute('/record/meal', _eatenAt),
       extra: _imageBytes == null
           ? null
           : ManualMealPhoto(
@@ -333,7 +343,11 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
     await ref.read(recordsProvider.notifier).create(record);
     if (mounted && !ref.read(recordsProvider).hasError) {
       _saved = true;
-      context.go('/timeline');
+      if (widget.initialRecordedAt != null && context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/timeline');
+      }
     }
   }
 
@@ -351,7 +365,7 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       0,
       (sum, food) => sum + food.consumedNutrition.energyKcal,
     );
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(title: const Text('음식 사진 기록')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
@@ -410,7 +424,8 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
               child: const Text('음식 검색 또는 이름만 추가'),
             ),
             OutlinedButton.icon(
-              onPressed: () => context.push('/record/barcode'),
+              onPressed: () =>
+                  context.push(recordDateRoute('/record/barcode', _eatenAt)),
               icon: const Icon(Icons.qr_code_scanner_rounded),
               label: const Text('제품 바코드로 기록'),
             ),
@@ -625,7 +640,8 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
           ],
           const SizedBox(height: 16),
           TextButton(
-            onPressed: () => context.push('/record/meal'),
+            onPressed: () =>
+                context.push(recordDateRoute('/record/meal', _eatenAt)),
             child: const Text('사진 없이 직접 입력하기'),
           ),
         ],

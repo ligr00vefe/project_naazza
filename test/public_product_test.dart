@@ -16,6 +16,35 @@ void main() {
     energyKcal: 200,
   );
   test(
+    'confirmed product saves additional micronutrients without substituting zero',
+    () {
+      final raw = data();
+      raw['nutrition'] = {
+        'energyKcal': 100,
+        'carbohydrateG': 10,
+        'proteinG': 2,
+        'fatG': 1,
+        'sodiumMg': 5,
+        'potassiumMg': 100,
+        'phosphorusMg': null,
+        'vitaminA': 30,
+        'thiaminMg': .2,
+        'riboflavinMg': 0,
+        'niacinMg': 3,
+      };
+      final item = PublicProduct(
+        raw,
+      ).confirmedFood(photo)!.copyWith(quantity: 2).toRecordItem();
+      final n = item['nutrition'] as Map;
+      expect(n['potassium_mg'], 100);
+      expect(n['phosphorus_mg'], isNull);
+      expect(n['vitamin_a_rae'], 30);
+      expect(n['thiamin_mg'], .2);
+      expect(n['riboflavin_mg'], 0);
+      expect(item['amount'], 400);
+    },
+  );
+  test(
     'ingredient payload from an older source is stripped from future meal saves',
     () {
       final raw = data();

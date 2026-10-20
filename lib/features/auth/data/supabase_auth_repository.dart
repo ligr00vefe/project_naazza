@@ -1,3 +1,4 @@
+import '../domain/birth_date.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import '../domain/auth_failure.dart';
 import '../domain/auth_user.dart';
@@ -18,6 +19,9 @@ class SupabaseAuthRepository implements AuthRepository {
     return AuthUser(
       id: user.id,
       username: username,
+      birthDate: parseBirthDate(user.userMetadata?['birth_date']),
+      nutritionSex: user.userMetadata?['nutrition_sex'] as String?,
+      nutritionLifeStage: user.userMetadata?['nutrition_life_stage'] as String?,
       email: user.userMetadata?['email']?.toString(),
       role: user.appMetadata['role']?.toString() ?? 'member',
     );
@@ -54,11 +58,20 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signUp({required String username, required String pin}) async {
+  Future<void> signUp({
+    required String username,
+    required String pin,
+    DateTime? birthDate,
+  }) async {
+    _validateBirthDate(birthDate);
     try {
       final response = await _client.functions.invoke(
         'username-signup',
-        body: {'username': _normalize(username), 'pin': pin},
+        body: {
+          'username': _normalize(username),
+          'pin': pin,
+          if (birthDate != null) 'birth_date': birthDateText(birthDate),
+        },
       );
       if (response.status < 200 || response.status >= 300) {
         final data = response.data;
@@ -70,6 +83,53 @@ class SupabaseAuthRepository implements AuthRepository {
       final details = error.details;
       final message = details is Map ? details['message']?.toString() : null;
       throw AuthFailure(message ?? '회원가입을 처리하지 못했어. 잠시 뒤 다시 시도해 줘.');
+    }
+  }
+
+  void _validateBirthDate(DateTime? value) {
+    if (value != null && parseBirthDate(birthDateText(value)) == null) {
+      throw const AuthFailure('생년월일을 확인해 줘.');
+    }
+  }
+
+  @override
+  Future<void> updateBirthDate(DateTime? birthDate) => updateNutritionProfile(
+    birthDate: birthDate,
+    sex: currentUser?.nutritionSex,
+    lifeStage: currentUser?.nutritionLifeStage,
+  );
+
+  @override
+  Future<void> updateNutritionProfile({
+    DateTime? birthDate,
+    String? sex,
+    String? lifeStage,
+  }) async {
+    _validateBirthDate(birthDate);
+    if (currentUser == null) throw const AuthFailure('로그인 후 다시 시도해 줘.');
+    if ((sex != null && !['male', 'female'].contains(sex)) ||
+        (lifeStage != null &&
+            ![
+              'general',
+              'pregnant1',
+              'pregnant2',
+              'pregnant3',
+              'nursing',
+            ].contains(lifeStage))) {
+      throw const AuthFailure('영양 기준을 확인해 줘.');
+    }
+    try {
+      await _client.auth.updateUser(
+        UserAttributes(
+          data: {
+            'birth_date': birthDate == null ? null : birthDateText(birthDate),
+            'nutrition_sex': sex,
+            'nutrition_life_stage': sex == 'male' ? 'general' : lifeStage,
+          },
+        ),
+      );
+    } on AuthException catch (error) {
+      throw _toFailure(error);
     }
   }
 

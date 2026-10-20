@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,7 +46,7 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
           if (b is MealGroup) return 1;
           return left.compareTo(right);
         });
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(title: const Text('타임라인')),
       body: Column(
         children: [
@@ -141,7 +142,9 @@ class _RecordCard extends ConsumerWidget {
         style: const TextStyle(fontWeight: FontWeight.w700),
       ),
       subtitle: Text(
-        '${_time(record.recordedAt)}  ${record.type == HealthRecordType.bowel ? "${BowelForm.recordLabel(record.data['bristol_type'])} · ${record.data['amount'] ?? '보통'}" : record.summary}',
+        record.type == HealthRecordType.water
+            ? '${record.recordedAt.month}월 ${record.recordedAt.day}일 · ${record.summary}'
+            : '${_time(record.recordedAt)}  ${record.type == HealthRecordType.bowel ? "${BowelForm.recordLabel(record.data['bristol_type'])} · ${record.data['amount'] ?? '보통'}" : record.summary}',
       ),
       trailing: PopupMenuButton<String>(
         onSelected: (value) async {
@@ -202,6 +205,7 @@ String _typeLabel(HealthRecordType type) => switch (type) {
   HealthRecordType.bowel => '배변',
   HealthRecordType.visit => '진료',
   HealthRecordType.alcohol => '음주',
+  HealthRecordType.water => '물',
 };
 IconData _typeIcon(HealthRecordType type) => switch (type) {
   HealthRecordType.meal => Icons.restaurant,
@@ -209,6 +213,7 @@ IconData _typeIcon(HealthRecordType type) => switch (type) {
   HealthRecordType.bowel => Icons.circle,
   HealthRecordType.visit => Icons.medical_services_rounded,
   HealthRecordType.alcohol => Icons.sports_bar,
+  HealthRecordType.water => Icons.water_drop_outlined,
 };
 Color _typeColor(HealthRecordType type) => switch (type) {
   HealthRecordType.meal => AppColors.primary,
@@ -216,6 +221,7 @@ Color _typeColor(HealthRecordType type) => switch (type) {
   HealthRecordType.bowel => const Color(0xFFE0A020),
   HealthRecordType.visit => const Color(0xFF4B91D5),
   HealthRecordType.alcohol => Colors.amber,
+  HealthRecordType.water => Colors.lightBlue,
 };
 String _editPath(HealthRecordType type) => switch (type) {
   HealthRecordType.meal => '/record/meal',
@@ -223,6 +229,7 @@ String _editPath(HealthRecordType type) => switch (type) {
   HealthRecordType.bowel => '/record/bowel',
   HealthRecordType.visit => '/record/visit',
   HealthRecordType.alcohol => '/record/alcohol',
+  HealthRecordType.water => '/record/water',
 };
 String _time(DateTime date) =>
     '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';

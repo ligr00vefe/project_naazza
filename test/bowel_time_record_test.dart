@@ -8,11 +8,11 @@ import 'package:naazza/features/auth/data/demo_auth_repository.dart';
 import 'package:naazza/features/records/data/demo_records_repository.dart';
 import 'package:naazza/features/records/data/records_repository.dart';
 import 'package:naazza/features/records/presentation/bowel_record_page.dart';
-import 'package:naazza/features/insights/domain/insight_summary.dart';
+import 'package:naazza/features/insights/domain/health_patterns.dart';
 
 void main() {
   testWidgets(
-    'two same-day entries keep their times; no movement keeps no form and is not a bowel movement count',
+    'two same-day entries keep their times and explicit constipation-to-normal states',
     (tester) async {
       final auth = DemoAuthRepository();
       await tester.runAsync(() => auth.signIn(username: 'tester', pin: '1234'));
@@ -68,12 +68,12 @@ void main() {
       );
       expect(noMovement.data['bristol_type'], isNull);
       expect(noMovement.data['constipation'], true);
-      final summary = InsightSummary.fromRecords(
+      final summary = HealthPatterns.fromRecords(
         records,
-        days: 30,
-        now: DateTime(2026, 10, 15),
+        now: DateTime(2026, 10, 15, 23, 59),
       );
-      expect(summary.bowelCount, 1);
+      expect(summary.states.first.symptoms, contains('변비'));
+      expect(summary.states.last.symptoms, isEmpty);
     },
   );
 }

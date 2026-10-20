@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
@@ -12,7 +13,7 @@ class VisitPreparationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final records = ref.watch(recordsProvider).value ?? const <HealthRecord>[];
     final summary = VisitPreparation.build(records, visit);
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(title: const Text('진료 준비 요약')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),

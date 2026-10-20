@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_design.dart';
 import 'main_navigation_bar.dart';
+import 'app_scaffold.dart';
 import 'word_wrap_text.dart';
 
 /// Shared shell for all four root destinations: title, intro, width and nav.
@@ -9,7 +10,7 @@ class AppPage extends StatelessWidget {
   const AppPage({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle = '',
     required this.selectedIndex,
     required this.body,
     this.actions = const [],
@@ -19,7 +20,7 @@ class AppPage extends StatelessWidget {
   final Widget body;
   final List<Widget> actions;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(
       automaticallyImplyLeading: false,
       title: AppPageTitle(title),
@@ -35,10 +36,11 @@ class AppPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: WordWrapText(subtitle, style: AppDesign.caption),
-              ),
+              if (subtitle.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: WordWrapText(subtitle, style: AppDesign.caption),
+                ),
               Expanded(child: body),
             ],
           ),
@@ -115,10 +117,12 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
     color: color,
+    elevation: 1,
+    shadowColor: const Color(0x123B6FF5),
     clipBehavior: Clip.antiAlias,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppDesign.radius),
-      side: const BorderSide(color: AppColors.outline),
+      side: BorderSide.none,
     ),
     child: InkWell(
       onTap: onTap,
@@ -133,13 +137,13 @@ class AppIconBadge extends StatelessWidget {
   final Color color;
   @override
   Widget build(BuildContext context) => Container(
-    width: 34,
-    height: 34,
+    width: 42,
+    height: 42,
     decoration: BoxDecoration(
-      color: color.withValues(alpha: .08),
-      borderRadius: BorderRadius.circular(10),
+      color: color.withValues(alpha: .09),
+      borderRadius: BorderRadius.circular(14),
     ),
-    child: Icon(icon, size: 19, color: color),
+    child: Icon(icon, size: 23, color: color),
   );
 }
 
@@ -150,6 +154,7 @@ class AppListRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.icon,
+    this.leading,
     this.trailing,
     this.onTap,
     this.iconColor = AppColors.primary,
@@ -157,6 +162,7 @@ class AppListRow extends StatelessWidget {
   final String title;
   final String? subtitle;
   final IconData? icon;
+  final Widget? leading;
   final Color iconColor;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -169,8 +175,8 @@ class AppListRow extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            if (icon != null) ...[
-              AppIconBadge(icon!, color: iconColor),
+            if (leading != null || icon != null) ...[
+              leading ?? AppIconBadge(icon!, color: iconColor),
               const SizedBox(width: 12),
             ],
             Expanded(
@@ -211,7 +217,7 @@ class AppRecordTile extends StatelessWidget {
   const AppRecordTile({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle = '',
     required this.onTap,
   });
   final String title, subtitle;
@@ -220,5 +226,65 @@ class AppRecordTile extends StatelessWidget {
   Widget build(BuildContext context) => AppCard(
     padding: EdgeInsets.zero,
     child: AppListRow(title: title, subtitle: subtitle, onTap: onTap),
+  );
+}
+
+/// A shared, accessible tile for setup choices and profile selectors.
+class AppChoiceTile extends StatelessWidget {
+  const AppChoiceTile({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Material(
+      color: selected ? AppColors.mintSurface : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: selected ? AppColors.secondary : AppColors.outline,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(
+                    icon,
+                    size: 26,
+                    color: selected ? AppColors.secondary : AppColors.muted,
+                  ),
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.circle_outlined,
+                    size: 15,
+                    color: selected ? AppColors.secondary : AppColors.outline,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              WordWrapText(label, style: AppDesign.body),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }

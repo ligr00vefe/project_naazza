@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +14,7 @@ class ExportPage extends ConsumerStatefulWidget {
 class _ExportPageState extends ConsumerState<ExportPage> {
   int _days = 30;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(title: const Text('기록 내보내기')),
     body: ListView(
       padding: const EdgeInsets.all(20),

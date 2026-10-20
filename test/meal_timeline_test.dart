@@ -225,7 +225,7 @@ void main() {
     );
     final router = await open(tester, repo, location: '/insights', scale: 1.6);
     addTearDown(router.dispose);
-    expect(find.text('살펴봐요.'), findsOneWidget);
+    expect(find.text('인사이트'), findsWidgets);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -244,6 +244,11 @@ void main() {
     expect(tester.takeException(), isNull);
     router.go('/settings');
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('기본 적용 안내'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('기본 적용 안내'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

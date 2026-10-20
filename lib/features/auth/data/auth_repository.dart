@@ -5,7 +5,17 @@ abstract interface class AuthRepository {
   AuthUser? get currentUser;
   Stream<AuthUser?> get authStateChanges;
   Future<void> signIn({required String username, required String pin});
-  Future<void> signUp({required String username, required String pin});
+  Future<void> signUp({
+    required String username,
+    required String pin,
+    DateTime? birthDate,
+  });
+  Future<void> updateBirthDate(DateTime? birthDate);
+  Future<void> updateNutritionProfile({
+    DateTime? birthDate,
+    String? sex,
+    String? lifeStage,
+  });
   Future<void> signOut();
 }
 

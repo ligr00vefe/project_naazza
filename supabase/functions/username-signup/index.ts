@@ -1,3 +1,4 @@
+import { parseOptionalBirthDate } from './birth_date.ts'
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
 
@@ -26,7 +27,7 @@ Deno.serve(async (request: Request) => {
     email: `${parsed.username}@accounts.naazza.invalid`,
     password,
     email_confirm: true,
-    user_metadata: { username: parsed.username },
+    user_metadata: { username: parsed.username, birth_date: parsed.birthDate },
     app_metadata: { role: 'member' },
   })
   if (error) {
@@ -42,13 +43,15 @@ Deno.serve(async (request: Request) => {
 })
 
 async function parseCredentials(request: Request) {
-  let body: { username?: unknown; pin?: unknown }
+  let body: { username?: unknown; pin?: unknown; birth_date?: unknown }
   try { body = await request.json() } catch { return { error: '요청 형식이 올바르지 않아.' } }
   const username = String(body.username ?? '').trim().toLowerCase()
   const pin = String(body.pin ?? '')
   if (!/^[a-z0-9_]{3,20}$/.test(username)) return { error: '아이디는 영문 소문자, 숫자, 밑줄로 3~20자 입력해 줘.' }
   if (!/^\d{4}$/.test(pin)) return { error: '비밀번호를 확인해 줘.' }
-  return { username, pin }
+  const birthDate = parseOptionalBirthDate(body.birth_date)
+  if (birthDate === undefined) return { error: '생년월일을 확인해 줘.' }
+  return { username, pin, birthDate }
 }
 
 async function consumeAttempt(admin: ReturnType<typeof createClient>, request: Request, scope: string) {

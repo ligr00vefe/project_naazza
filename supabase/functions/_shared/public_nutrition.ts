@@ -27,6 +27,8 @@ export function normalizePublicRow(row: PublicRow, retrievedAt: string) {
     transFatG: number(row.fatrn), cholesterolMg: number(row.chole),
     calciumMg: number(row.ca), ironMg: number(row.fe), potassiumMg: number(row.k),
     vitaminA: number(row.vitaRae), vitaminC: number(row.vitc), vitaminD: number(row.vitd),
+    phosphorusMg: number(row.p), thiaminMg: number(row.thia),
+    riboflavinMg: number(row.ribf), niacinMg: number(row.nia),
   }
   return {
     id, name, dataType: text(row.typeNm), dataCode: text(row.dataCd),

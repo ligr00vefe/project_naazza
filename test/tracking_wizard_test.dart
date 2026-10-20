@@ -1,3 +1,7 @@
+import 'package:naazza/core/widgets/app_page.dart';
+import 'package:naazza/features/auth/presentation/nutrition_profile_fields.dart';
+import 'package:naazza/features/auth/data/auth_repository.dart';
+import 'package:naazza/features/auth/data/demo_auth_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -29,7 +33,7 @@ class TestProfileController extends TrackingProfileController {
 }
 
 void main() {
-  Future<void> open(
+  Future<DemoAuthRepository> open(
     WidgetTester tester,
     TestProfileController controller, {
     bool editing = false,
@@ -41,6 +45,8 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    final auth = DemoAuthRepository();
+    await tester.runAsync(() => auth.signIn(username: 'tester', pin: '1234'));
     final router = GoRouter(
       initialLocation: '/setup',
       routes: [
@@ -58,6 +64,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          authRepositoryProvider.overrideWithValue(auth),
           trackingProfileProvider.overrideWith(() => controller),
           reduceMotionProvider.overrideWith((ref) => reduce),
         ],
@@ -84,6 +91,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    return auth;
   }
 
   Future<void> next(WidgetTester tester) async {
@@ -92,13 +100,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  bool metric(WidgetTester tester, String key) =>
-      tester.widget<SwitchListTile>(find.byKey(ValueKey('metric-$key'))).value;
+  bool metric(WidgetTester tester, String key) => tester
+      .widget<AppChoiceTile>(find.byKey(ValueKey('metric-$key')))
+      .selected;
   testWidgets(
     'both steps fit a small phone; selections and OFF choices survive goal changes and save',
     (tester) async {
       final controller = TestProfileController();
-      await open(tester, controller, size: const Size(360, 640));
+      final auth = await open(tester, controller, size: const Size(360, 640));
       expect(
         tester
             .widget<FilledButton>(find.byKey(const ValueKey('tracking-next')))
@@ -133,7 +142,35 @@ void main() {
         findsOneWidget,
       );
       await next(tester);
+      expect(find.text('생년월일'), findsOneWidget);
+      expect(find.text('성별'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('nutrition-sex-female')));
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+      tester
+          .widget<NutritionProfileFields>(find.byType(NutritionProfileFields))
+          .onBirthDate(DateTime(2000, 10, 20));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('이전'));
+      await tester.pumpAndSettle();
+      expect(metric(tester, 'fatigue'), false);
+      await next(tester);
+      expect(
+        tester
+            .widget<NutritionProfileFields>(find.byType(NutritionProfileFields))
+            .sex,
+        'female',
+      );
+      expect(
+        tester
+            .widget<NutritionProfileFields>(find.byType(NutritionProfileFields))
+            .birthDate,
+        DateTime(2000, 10, 20),
+      );
+      await next(tester);
       expect(find.text('saved-home'), findsOneWidget);
+      expect(auth.currentUser!.nutritionSex, 'female');
+      expect(auth.currentUser!.birthDate, DateTime(2000, 10, 20));
       expect(controller.saved!.conditionKeys, ['ibd']);
       expect(
         controller.saved!.metrics

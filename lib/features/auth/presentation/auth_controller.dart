@@ -25,12 +25,14 @@ class AuthController extends AsyncNotifier<void> {
   Future<void> signUp(
     String username,
     String pin, {
+    DateTime? birthDate,
     bool rememberId = false,
     bool autoLogin = false,
   }) => _authenticate(
     username,
     pin,
     signUp: true,
+    birthDate: birthDate,
     rememberId: rememberId,
     autoLogin: autoLogin,
   );
@@ -39,6 +41,7 @@ class AuthController extends AsyncNotifier<void> {
     String username,
     String pin, {
     bool signUp = false,
+    DateTime? birthDate,
     required bool rememberId,
     required bool autoLogin,
   }) async {
@@ -49,7 +52,11 @@ class AuthController extends AsyncNotifier<void> {
       await settings.setAutoLogin(autoLogin);
       final repository = ref.read(authRepositoryProvider);
       if (signUp) {
-        await repository.signUp(username: username.trim(), pin: pin);
+        await repository.signUp(
+          username: username.trim(),
+          pin: pin,
+          birthDate: birthDate,
+        );
       } else {
         await repository.signIn(username: username.trim(), pin: pin);
       }

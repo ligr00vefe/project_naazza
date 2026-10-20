@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/widgets/record_datetime_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +10,9 @@ import 'bowel_form_selector.dart';
 import 'records_controller.dart';
 
 class BowelRecordPage extends ConsumerStatefulWidget {
-  const BowelRecordPage({super.key, this.record});
+  const BowelRecordPage({super.key, this.record, this.initialRecordedAt});
   final HealthRecord? record;
+  final DateTime? initialRecordedAt;
   @override
   ConsumerState<BowelRecordPage> createState() => _BowelRecordPageState();
 }
@@ -18,6 +20,7 @@ class BowelRecordPage extends ConsumerStatefulWidget {
 class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
   DateTime _recordedAt = DateTime.now();
   bool _hadMovement = true, _constipation = false;
+  bool? _bloodInStool = false;
   int _bristol = 4;
   String _urgency = '없음';
   String _pain = '없음';
@@ -27,11 +30,15 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
   @override
   void initState() {
     super.initState();
-    _recordedAt = widget.record?.recordedAt.toLocal() ?? DateTime.now();
+    _recordedAt =
+        widget.record?.recordedAt.toLocal() ??
+        widget.initialRecordedAt ??
+        DateTime.now();
     final data = widget.record?.data;
     if (data != null) {
       _hadMovement = data['had_bowel_movement'] != false;
       _constipation = data['constipation'] == true;
+      _bloodInStool = data['blood_in_stool'] as bool?;
       _bristol = data['bristol_type'] as int? ?? 4;
       _urgency = data['urgency']?.toString() ?? '없음';
       _pain = data['pain']?.toString() ?? '없음';
@@ -55,11 +62,12 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
       recordedAt: _recordedAt,
       title: _hadMovement ? '배변 기록' : '변비 기록',
       summary: _hadMovement
-          ? '${_constipation ? '변비 · ' : ''}${BowelForm.recordLabel(_bristol)} · $_amount'
-          : '변비 · 배변 못함',
+          ? '${_bloodInStool == true ? '혈변 · ' : ''}${_constipation ? '변비 · ' : ''}${BowelForm.recordLabel(_bristol)} · $_amount'
+          : '변비 · 배변 못함${_bloodInStool == true ? ' · 혈변' : ''}',
       data: {
         'had_bowel_movement': _hadMovement,
         'constipation': _constipation,
+        'blood_in_stool': _bloodInStool,
         'bristol_type': _hadMovement ? _bristol : null,
         'urgency': _urgency,
         'pain': _pain,
@@ -74,9 +82,10 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(title: Text(widget.record == null ? '배변 기록' : '배변 기록 수정')),
     body: ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(20),
       children: [
         Text('오늘의 배변은?', style: Theme.of(context).textTheme.headlineMedium),
@@ -94,7 +103,10 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
             ChoiceChip(
               label: const Text('배변했어요'),
               selected: _hadMovement,
-              onSelected: (_) => setState(() => _hadMovement = true),
+              onSelected: (_) => setState(() {
+                _hadMovement = true;
+                _constipation = false;
+              }),
             ),
             ChoiceChip(
               label: const Text('변비 · 배변 못함'),
@@ -106,13 +118,19 @@ class _BowelRecordPageState extends ConsumerState<BowelRecordPage> {
             ),
           ],
         ),
-        if (_hadMovement)
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('변비가 있었어요'),
-            value: _constipation,
-            onChanged: (v) => setState(() => _constipation = v),
-          ),
+        SwitchListTile(
+          key: const ValueKey('blood-in-stool'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('혈변', style: TextStyle(fontSize: 13)),
+          subtitle: _bloodInStool == null
+              ? const Text(
+                  '이전 기록에는 체크 내역이 없어요.',
+                  style: TextStyle(fontSize: 12),
+                )
+              : null,
+          value: _bloodInStool == true,
+          onChanged: (value) => setState(() => _bloodInStool = value),
+        ),
         const SizedBox(height: 14),
         if (_hadMovement)
           BowelFormSelector(

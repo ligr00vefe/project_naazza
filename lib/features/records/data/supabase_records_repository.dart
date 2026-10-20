@@ -1,4 +1,5 @@
 import '../domain/alcohol_record.dart';
+import '../domain/water_record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/health_record.dart';
 import '../domain/bowel_form.dart';
@@ -16,6 +17,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
       _allRows('bowel_logs', userId),
       _allRows('visit_events', userId),
       _allRows('alcohol_logs', userId),
+      _allRows('water_logs', userId),
     ]);
     final records = <HealthRecord>[
       for (final row in responses[0]) _mealFromRow(row),
@@ -23,6 +25,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
       for (final row in responses[2]) _bowelFromRow(row),
       for (final row in responses[3]) _visitFromRow(row),
       for (final row in responses[4]) _alcoholFromRow(row),
+      for (final row in responses[5]) _waterFromRow(row),
     ]..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return records;
   }
@@ -50,6 +53,14 @@ class SupabaseRecordsRepository implements RecordsRepository {
 
   @override
   Future<HealthRecord> create(HealthRecord record) async {
+    if (record.type == HealthRecordType.water) {
+      final row = await _client
+          .from('water_logs')
+          .upsert(_toRow(record), onConflict: 'user_id,drunk_on')
+          .select()
+          .single();
+      return _waterFromRow(row);
+    }
     final table = _table(record.type);
     final row = await _client
         .from(table)
@@ -99,9 +110,16 @@ class SupabaseRecordsRepository implements RecordsRepository {
     HealthRecordType.bowel => 'bowel_logs',
     HealthRecordType.visit => 'visit_events',
     HealthRecordType.alcohol => 'alcohol_logs',
+    HealthRecordType.water => 'water_logs',
   };
 
   Map<String, Object?> _toRow(HealthRecord record) => switch (record.type) {
+    HealthRecordType.water => {
+      'user_id': record.userId,
+      'drunk_on': waterDateText(record.recordedAt),
+      'cups': requireWaterCups(record.data['cups']),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    },
     HealthRecordType.meal => {
       'user_id': record.userId,
       'eaten_at': record.recordedAt.toUtc().toIso8601String(),
@@ -117,6 +135,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
       'recorded_at': record.recordedAt.toUtc().toIso8601String(),
       'response_status': record.data['response_status'],
       'symptoms': record.data['symptoms'],
+      'details': {'symptom_events': record.data['symptom_events'] ?? {}},
       'memo': record.data['memo'],
     },
     HealthRecordType.bowel => {
@@ -124,6 +143,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
       'recorded_at': record.recordedAt.toUtc().toIso8601String(),
       'had_bowel_movement': record.data['had_bowel_movement'] ?? true,
       'constipation': record.data['constipation'] ?? false,
+      'blood_in_stool': record.data['blood_in_stool'],
       'bristol_type': record.data['bristol_type'],
       'urgency': record.data['urgency'],
       'pain': record.data['pain'],
@@ -159,6 +179,7 @@ class SupabaseRecordsRepository implements RecordsRepository {
         HealthRecordType.bowel => _bowelFromRow(row),
         HealthRecordType.visit => _visitFromRow(row),
         HealthRecordType.alcohol => _alcoholFromRow(row),
+        HealthRecordType.water => _waterFromRow(row),
       };
 
   HealthRecord _mealFromRow(Map<String, dynamic> row) {
@@ -182,6 +203,18 @@ class SupabaseRecordsRepository implements RecordsRepository {
     );
   }
 
+  HealthRecord _waterFromRow(Map<String, dynamic> row) => normalizeWaterRecord(
+    HealthRecord(
+      id: row['id'].toString(),
+      userId: row['user_id'].toString(),
+      type: HealthRecordType.water,
+      recordedAt: DateTime.parse(row['drunk_on'].toString()),
+      title: '물 마시기',
+      summary: '',
+      data: {'cups': row['cups']},
+    ),
+  );
+
   HealthRecord _conditionFromRow(Map<String, dynamic> row) {
     final status = row['response_status'] as String;
     final symptoms = List<String>.from(row['symptoms'] as List? ?? const []);
@@ -196,7 +229,10 @@ class SupabaseRecordsRepository implements RecordsRepository {
           ? '건너뛰기'
           : '증상 기록',
       summary: symptoms.isEmpty ? '특별한 증상 없음' : symptoms.join(', '),
-      data: Map<String, Object?>.from(row),
+      data: {
+        ...Map<String, Object?>.from(row),
+        ...Map<String, Object?>.from(row['details'] as Map? ?? {}),
+      },
     );
   }
 
@@ -207,8 +243,8 @@ class SupabaseRecordsRepository implements RecordsRepository {
     recordedAt: DateTime.parse(row['recorded_at'] as String),
     title: row['had_bowel_movement'] == false ? '변비 기록' : '배변 기록',
     summary: row['had_bowel_movement'] == false
-        ? '변비 · 배변 못함'
-        : '${row['constipation'] == true ? '변비 · ' : ''}${BowelForm.recordLabel(row['bristol_type'])} · ${row['amount'] ?? '보통'}',
+        ? '변비 · 배변 못함${row['blood_in_stool'] == true ? ' · 혈변' : ''}'
+        : '${row['blood_in_stool'] == true ? '혈변 · ' : ''}${row['constipation'] == true ? '변비 · ' : ''}${BowelForm.recordLabel(row['bristol_type'])} · ${row['amount'] ?? '보통'}',
     data: Map<String, Object?>.from(row),
   );
 

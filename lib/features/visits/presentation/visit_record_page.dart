@@ -1,3 +1,4 @@
+import '../../../core/widgets/app_scaffold.dart';
 import 'visit_recents.dart';
 import '../../records/domain/record_labels.dart';
 import '../../../core/widgets/word_wrap_text.dart';
@@ -9,8 +10,9 @@ import '../../records/domain/health_record.dart';
 import '../../records/presentation/records_controller.dart';
 
 class VisitRecordPage extends ConsumerStatefulWidget {
-  const VisitRecordPage({super.key, this.record});
+  const VisitRecordPage({super.key, this.record, this.initialRecordedAt});
   final HealthRecord? record;
+  final DateTime? initialRecordedAt;
   @override
   ConsumerState<VisitRecordPage> createState() => _VisitRecordPageState();
 }
@@ -32,7 +34,10 @@ class _VisitRecordPageState extends ConsumerState<VisitRecordPage> {
   void initState() {
     super.initState();
     final data = widget.record?.data;
-    _visitAt = widget.record?.recordedAt ?? DateTime.now();
+    _visitAt =
+        widget.record?.recordedAt.toLocal() ??
+        widget.initialRecordedAt ??
+        DateTime.now();
     _nextVisitAt = DateTime.tryParse(data?['next_visit_at']?.toString() ?? '');
     _visitType = data?['visit_type']?.toString() ?? 'regular';
     _facility = TextEditingController(
@@ -69,7 +74,7 @@ class _VisitRecordPageState extends ConsumerState<VisitRecordPage> {
   Future<DateTime?> _pickDate(DateTime initial) => showDatePicker(
     context: context,
     initialDate: initial,
-    firstDate: DateTime(2020),
+    firstDate: DateTime(1),
     lastDate: DateTime(2035),
   );
   Future<void> _save() async {
@@ -119,7 +124,7 @@ class _VisitRecordPageState extends ConsumerState<VisitRecordPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(
       title: Text(widget.record == null ? '진료/내원 기록' : '진료 기록 수정'),
     ),
@@ -132,10 +137,10 @@ class _VisitRecordPageState extends ConsumerState<VisitRecordPage> {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 18),
-        Wrap(
-          spacing: 8,
-          runSpacing: 10,
-          children: [
+        DropdownButtonFormField<String>(
+          initialValue: _visitType,
+          decoration: const InputDecoration(labelText: '기록 유형'),
+          items: [
             for (final value in [
               'regular',
               'checkup',
@@ -144,12 +149,11 @@ class _VisitRecordPageState extends ConsumerState<VisitRecordPage> {
               'visit',
               'other',
             ])
-              ChoiceChip(
-                label: Text(visitCategory(value)),
-                selected: _visitType == value,
-                onSelected: (_) => setState(() => _visitType = value),
-              ),
+              DropdownMenuItem(value: value, child: Text(visitCategory(value))),
           ],
+          onChanged: (v) {
+            if (v != null) setState(() => _visitType = v);
+          },
         ),
         const SizedBox(height: 16),
         _DateTile(
@@ -172,7 +176,7 @@ class _VisitRecordPageState extends ConsumerState<VisitRecordPage> {
           controller: _facility,
           decoration: const InputDecoration(
             labelText: '병원/기관',
-            prefixIcon: Icon(Icons.local_hospital_outlined),
+            prefixIcon: Icon(Icons.monitor_heart_outlined),
           ),
         ),
 

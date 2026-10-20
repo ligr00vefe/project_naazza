@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/records_repository.dart';
 import '../domain/health_record.dart';
+import '../domain/water_record.dart';
 
 final recordsProvider =
     AsyncNotifierProvider<RecordsController, List<HealthRecord>>(
@@ -9,11 +10,38 @@ final recordsProvider =
     );
 
 class RecordsController extends AsyncNotifier<List<HealthRecord>> {
+  /// Keep the loaded list and the form selection intact on network failure.
+  Future<void> saveWater(HealthRecord record, {required bool editing}) async {
+    final user = ref.read(authRepositoryProvider).currentUser;
+    if (user == null || user.id != record.userId) {
+      throw StateError('로그인이 필요해요.');
+    }
+    final previous = state.value ?? [];
+    final repository = ref.read(recordsRepositoryProvider);
+    final saved = editing
+        ? await repository.update(normalizeWaterRecord(record))
+        : await repository.create(normalizeWaterRecord(record));
+    if (ref.read(authRepositoryProvider).currentUser?.id != user.id) return;
+    state = AsyncData(
+      [
+        saved,
+        ...previous.where(
+          (r) =>
+              r.id != saved.id &&
+              !(r.type == HealthRecordType.water &&
+                  waterDay(r.recordedAt) == waterDay(saved.recordedAt)),
+        ),
+      ]..sort((a, b) => b.recordedAt.compareTo(a.recordedAt)),
+    );
+  }
+
   @override
   Future<List<HealthRecord>> build() async {
-    final user = ref.watch(authStateProvider).value;
-    if (user == null) return [];
-    return ref.read(recordsRepositoryProvider).list(user.id);
+    final userId = ref.watch(
+      authStateProvider.select((state) => state.value?.id),
+    );
+    if (userId == null) return [];
+    return ref.read(recordsRepositoryProvider).list(userId);
   }
 
   Future<void> create(HealthRecord record) async {

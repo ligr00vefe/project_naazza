@@ -133,7 +133,7 @@ void main() {
       final image = await boundary.toImage(pixelRatio: 2);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       await File(
-        'artifacts/login-design-b-preview.png',
+        'artifacts/mint-login-implemented.png',
       ).writeAsBytes(data!.buffer.asUint8List());
       image.dispose();
     });

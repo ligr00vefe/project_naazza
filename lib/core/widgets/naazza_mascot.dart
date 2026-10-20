@@ -6,7 +6,7 @@ class NaazzaMascot extends ConsumerWidget {
   const NaazzaMascot({
     super.key,
     this.size = 150,
-    this.semanticLabel = '건강 기록 도우미 나짜',
+    this.semanticLabel = '건강 기록 도우미',
   });
   final double size;
   final String semanticLabel;

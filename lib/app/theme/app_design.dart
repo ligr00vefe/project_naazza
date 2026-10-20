@@ -3,9 +3,9 @@ import 'app_colors.dart';
 
 /// Shared type and spacing tokens. Root screens must not duplicate these values.
 abstract final class AppDesign {
-  static const pagePadding = EdgeInsets.fromLTRB(20, 4, 20, 28);
+  static const pagePadding = EdgeInsets.fromLTRB(20, 12, 20, 28);
   static const cardPadding = EdgeInsets.all(16);
-  static const radius = 18.0;
+  static const radius = 22.0;
   static const sectionGap = 22.0;
   static const cardGap = 10.0;
   static const pageTitle = TextStyle(

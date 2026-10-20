@@ -1,4 +1,7 @@
+import '../../../core/widgets/app_scaffold.dart';
 import 'food_portion_dialog.dart';
+import '../../../core/widgets/record_datetime_field.dart';
+import '../../records/domain/record_draft_date.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +15,8 @@ import '../data/meal_analysis_repository.dart';
 import '../domain/meal_analysis.dart';
 
 class BarcodeScannerPage extends ConsumerStatefulWidget {
-  const BarcodeScannerPage({super.key});
+  const BarcodeScannerPage({super.key, this.initialRecordedAt});
+  final DateTime? initialRecordedAt;
   @override
   ConsumerState<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
 }
@@ -33,6 +37,13 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
   String _mealType = 'meal';
   String? _barcode, _error;
   FoodCandidate? _product;
+  DateTime _recordedAt = DateTime.now();
+  @override
+  void initState() {
+    super.initState();
+    _recordedAt = widget.initialRecordedAt ?? DateTime.now();
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -90,7 +101,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
             id: 'meal-${DateTime.now().microsecondsSinceEpoch}',
             userId: user.id,
             type: HealthRecordType.meal,
-            recordedAt: DateTime.now(),
+            recordedAt: _recordedAt,
             title: product.name,
             summary:
                 '${product.quantity}개 · ${nutrition.energyKcal.round()} kcal',
@@ -105,7 +116,13 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
             },
           ),
         );
-    if (mounted && !ref.read(recordsProvider).hasError) context.go('/timeline');
+    if (mounted && !ref.read(recordsProvider).hasError) {
+      if (widget.initialRecordedAt != null && context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/timeline');
+      }
+    }
   }
 
   void _retry() {
@@ -118,7 +135,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(title: const Text('바코드로 기록')),
     body: ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
@@ -133,6 +150,12 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
           style: TextStyle(color: AppColors.muted),
         ),
         const SizedBox(height: 18),
+        RecordDateTimeField(
+          label: '먹은 시각',
+          value: _recordedAt,
+          onChanged: (v) => setState(() => _recordedAt = v),
+        ),
+        const SizedBox(height: 16),
         if (_product == null && !_lookingUp)
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
@@ -204,12 +227,15 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
         OutlinedButton.icon(
           onPressed: _lookingUp
               ? null
-              : () => context.push('/record/meal-photo'),
+              : () => context.push(
+                  recordDateRoute('/record/meal-photo', _recordedAt),
+                ),
           icon: const Icon(Icons.photo_camera_rounded),
           label: const Text('제품 사진으로 AI 분석하기'),
         ),
         TextButton(
-          onPressed: () => context.push('/record/meal'),
+          onPressed: () =>
+              context.push(recordDateRoute('/record/meal', _recordedAt)),
           child: const Text('제품을 직접 입력하기'),
         ),
       ],

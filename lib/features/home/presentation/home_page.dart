@@ -1,3 +1,6 @@
+import '../../../app/theme/app_colors.dart';
+import '../../records/presentation/meal_photo.dart';
+import '../../insights/presentation/nutrient_insight_card.dart';
 import '../../../core/widgets/word_wrap_text.dart';
 import '../../records/domain/meal_group.dart';
 import '../../records/domain/health_record.dart';
@@ -57,9 +60,11 @@ class HomePage extends ConsumerWidget {
     final todayRecords = allRecords
         .where((r) => DateUtils.isSameDay(r.recordedAt.toLocal(), today))
         .toList();
+    final todayWater = todayRecords
+        .where((r) => r.type == HealthRecordType.water)
+        .firstOrNull;
     return AppPage(
-      title: '홈',
-      subtitle: '오늘의 작은 기록을 차곡차곡 쌓아봐요.',
+      title: 'NAAZZA',
       selectedIndex: 0,
       actions: [
         IconButton(
@@ -70,78 +75,81 @@ class HomePage extends ConsumerWidget {
       ],
       body: AppPageList(
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: Text(
+              '${today.month}월 ${today.day}일 ${const ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][today.weekday - 1]}',
+              style: AppDesign.sectionTitle,
+            ),
+          ),
+          NutrientInsightCard(records: allRecords, compact: true),
+          const SizedBox(height: 12),
           AppCard(
-            color: const Color(0xFFF0F5EA),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: WordWrapText(
-                        '오늘의 기록',
-                        style: AppDesign.sectionTitle,
-                      ),
-                    ),
-                    Text(
-                      '${today.month}월 ${today.day}일',
-                      style: AppDesign.caption,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _TodayCount('식사', groupMeals(todayRecords).length),
-                    _TodayCount(
-                      '배변',
-                      todayRecords
-                          .where(
-                            (r) =>
-                                r.type == HealthRecordType.bowel &&
-                                r.data['had_bowel_movement'] != false,
-                          )
-                          .length,
-                    ),
-                    _TodayCount(
-                      '컨디션',
-                      todayRecords
-                          .where((r) => r.type == HealthRecordType.condition)
-                          .length,
-                    ),
-                  ],
-                ),
-              ],
+            padding: EdgeInsets.zero,
+            color: AppColors.blueSurface,
+            child: AppListRow(
+              title: todayWater == null
+                  ? '물 기록하기'
+                  : '오늘 마신 물 ${todayWater.data['cups']}컵',
+              icon: Icons.local_drink_outlined,
+              onTap: () => context.push('/record/water'),
             ),
           ),
           const SizedBox(height: AppDesign.sectionGap),
           const AppSectionHeader('빠른 기록'),
           LayoutBuilder(
             builder: (context, box) {
-              final single = MediaQuery.textScalerOf(context).scale(13) > 19;
-              final width = single ? box.maxWidth : (box.maxWidth - 10) / 2;
+              final large = MediaQuery.textScalerOf(context).scale(13) > 19;
+              final columns = large ? 2 : 3;
+              final width = (box.maxWidth - (columns - 1) * 10) / columns;
+              const items = [
+                (Icons.restaurant_outlined, '식사 기록', '/record/meal-photo'),
+                (Icons.spa_outlined, '배변 기록', '/record/bowel'),
+                (
+                  Icons.sentiment_satisfied_alt_outlined,
+                  '증상 기록',
+                  '/record/condition',
+                ),
+                (Icons.monitor_heart_outlined, '내원 기록', '/record/visit'),
+                (Icons.sports_bar_outlined, '음주 기록', '/record/alcohol'),
+                (Icons.local_drink_outlined, '물 마시기', '/record/water'),
+              ];
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  for (final item in [
-                    (Icons.restaurant_outlined, '식사 기록', '/record/meal-photo'),
-                    (Icons.edit_note_rounded, '배변 기록', '/record/bowel'),
-                    (
-                      Icons.favorite_border_rounded,
-                      '증상 기록',
-                      '/record/condition',
-                    ),
-                    (Icons.event_note_outlined, '내원 기록', '/record/visit'),
-                  ])
+                  for (var i = 0; i < items.length; i++)
                     SizedBox(
                       width: width,
                       child: AppCard(
                         padding: EdgeInsets.zero,
-                        child: AppListRow(
-                          title: item.$2,
-                          icon: item.$1,
-                          onTap: () => context.push(item.$3),
+                        color: i.isEven
+                            ? AppColors.mintSurface
+                            : AppColors.blueSurface,
+                        onTap: () => context.push(items[i].$3),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 16,
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                items[i].$1,
+                                size: 27,
+                                color: i.isEven
+                                    ? AppColors.secondary
+                                    : AppColors.primary,
+                              ),
+                              const SizedBox(height: 9),
+                              WordWrapText(
+                                items[i].$2,
+                                style: AppDesign.body.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -149,6 +157,40 @@ class HomePage extends ConsumerWidget {
               );
             },
           ),
+          AppSectionHeader(
+            '최근 기록',
+            action: TextButton(
+              onPressed: () => context.push('/timeline'),
+              child: const Text('전체 보기', style: AppDesign.caption),
+            ),
+          ),
+          if (recentRecords.isEmpty)
+            const AppCard(
+              child: WordWrapText('첫 기록을 남겨보세요.', style: AppDesign.caption),
+            )
+          else
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  for (final entry in recentRecords.indexed) ...[
+                    if (entry.$1 > 0)
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                    _RecentRow(record: entry.$2),
+                  ],
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text(
+            '오늘 식사 ${groupMeals(todayRecords).length} · 배변 ${todayRecords.where((r) => r.type == HealthRecordType.bowel && r.data['had_bowel_movement'] != false).length} · 컨디션 ${todayRecords.where((r) => r.type == HealthRecordType.condition).length}',
+            style: AppDesign.caption,
+          ),
+          if (upcomingVisit != null) ...[
+            const SizedBox(height: AppDesign.sectionGap),
+            const AppSectionHeader('다가오는 진료'),
+            _VisitCard(record: upcomingVisit),
+          ],
           if (quickMetrics.isNotEmpty) ...[
             const SizedBox(height: AppDesign.sectionGap),
             const AppSectionHeader('나의 추적 항목'),
@@ -164,38 +206,6 @@ class HomePage extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: AppDesign.sectionGap),
-          AppSectionHeader(
-            '최근 기록',
-            action: TextButton(
-              onPressed: () => context.push('/timeline'),
-              child: const Text('전체 보기', style: AppDesign.caption),
-            ),
-          ),
-          if (recentRecords.isEmpty)
-            const AppCard(
-              child: WordWrapText('첫 기록을 남겨보세요.', style: AppDesign.caption),
-            )
-          else
-            for (final record in recentRecords)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppDesign.cardGap),
-                child: AppRecordTile(
-                  title: record is MealGroup
-                      ? '${record.category.label} · ${compactMealNames(record)}'
-                      : (record as HealthRecord).title,
-                  subtitle: record is MealGroup
-                      ? '총 ${record.calories.round()} kcal'
-                      : (record as HealthRecord).summary,
-                  onTap: () => record is MealGroup
-                      ? context.push('/timeline/meal', extra: record)
-                      : context.push('/records/detail', extra: record),
-                ),
-              ),
-          if (upcomingVisit != null) ...[
-            const SizedBox(height: AppDesign.sectionGap),
-            const AppSectionHeader('다가오는 진료'),
-            _VisitCard(record: upcomingVisit),
-          ],
           const SizedBox(height: 12),
           TextButton.icon(
             onPressed: () => context.push('/export'),
@@ -208,21 +218,49 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-class _TodayCount extends StatelessWidget {
-  const _TodayCount(this.label, this.count);
-  final String label;
-  final int count;
+class _RecentRow extends StatelessWidget {
+  const _RecentRow({required this.record});
+  final Object record;
   @override
-  Widget build(BuildContext context) => Expanded(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('$count', style: AppDesign.metric),
-        const SizedBox(height: 4),
-        Text(label, style: AppDesign.caption),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final meal = record is MealGroup ? record as MealGroup : null;
+    final single = record is HealthRecord ? record as HealthRecord : null;
+    final at = _recentTime(record);
+    final time =
+        '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    final path = meal?.records
+        .map((r) => r.data['photo_path'])
+        .whereType<String>()
+        .firstOrNull;
+    final icon = switch (single?.type) {
+      HealthRecordType.bowel => Icons.spa_outlined,
+      HealthRecordType.condition => Icons.sentiment_satisfied_alt_outlined,
+      HealthRecordType.visit => Icons.monitor_heart_outlined,
+      HealthRecordType.alcohol => Icons.sports_bar_outlined,
+      HealthRecordType.water => Icons.local_drink_outlined,
+      _ => Icons.restaurant_outlined,
+    };
+    final badge = AppIconBadge(
+      icon,
+      color: single?.type == HealthRecordType.condition
+          ? const Color(0xFF8969D3)
+          : AppColors.secondary,
+    );
+    return AppListRow(
+      title: meal != null
+          ? '${meal.category.label} · ${compactMealNames(meal)}'
+          : single!.title,
+      subtitle: meal != null
+          ? '총 ${meal.calories.round()} kcal · $time'
+          : '${single!.summary}${single.type == HealthRecordType.water ? '' : ' · $time'}',
+      leading: path == null
+          ? badge
+          : MealPhotoThumbnail(path: path, fallback: badge),
+      onTap: () => meal != null
+          ? context.push('/timeline/meal', extra: meal)
+          : context.push('/records/detail', extra: single),
+    );
+  }
 }
 
 class _VisitCard extends StatelessWidget {
@@ -231,10 +269,15 @@ class _VisitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final next = DateTime.parse(record.data['next_visit_at'].toString());
-    return AppRecordTile(
-      title: record.title,
-      subtitle: '${next.year}.${next.month}.${next.day} · 진료 준비',
-      onTap: () => context.push('/visit/preparation', extra: record),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      color: AppColors.mintSurface,
+      child: AppListRow(
+        title: record.title,
+        icon: Icons.monitor_heart_outlined,
+        subtitle: '${next.year}.${next.month}.${next.day} · 진료 준비',
+        onTap: () => context.push('/visit/preparation', extra: record),
+      ),
     );
   }
 }

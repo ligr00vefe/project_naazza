@@ -1,4 +1,7 @@
+import '../../../core/widgets/word_wrap_text.dart';
+import '../../../core/widgets/app_scaffold.dart';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/record_datetime_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/data/auth_repository.dart';
@@ -7,8 +10,9 @@ import '../domain/alcohol_record.dart';
 import 'records_controller.dart';
 
 class AlcoholRecordPage extends ConsumerStatefulWidget {
-  const AlcoholRecordPage({super.key, this.record});
+  const AlcoholRecordPage({super.key, this.record, this.initialRecordedAt});
   final HealthRecord? record;
+  final DateTime? initialRecordedAt;
   @override
   ConsumerState<AlcoholRecordPage> createState() => _AlcoholRecordPageState();
 }
@@ -54,11 +58,16 @@ class _DrinkInput {
 }
 
 class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
+  DateTime _recordedAt = DateTime.now();
   final _inputs = <_DrinkInput>[];
   final _memo = TextEditingController();
   @override
   void initState() {
     super.initState();
+    _recordedAt =
+        widget.record?.recordedAt.toLocal() ??
+        widget.initialRecordedAt ??
+        DateTime.now();
     final data = widget.record?.data;
     if (data == null) {
       _inputs.add(_DrinkInput());
@@ -101,7 +110,7 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
           'alcohol-${DateTime.now().microsecondsSinceEpoch}',
       userId: ref.read(authRepositoryProvider).currentUser!.id,
       type: HealthRecordType.alcohol,
-      recordedAt: widget.record?.recordedAt ?? DateTime.now(),
+      recordedAt: _recordedAt,
       title: title,
       summary: '${items.length}개 항목 · 총 ${drinkNumber(total)} cc',
       data: {
@@ -156,56 +165,100 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
             ],
           ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            key: ValueKey('drink-$index-${input.drink}'),
-            initialValue: input.drink,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: '주종'),
-            items: [
-              for (final drink in drinkTypes)
-                DropdownMenuItem(value: drink, child: Text(drink)),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  input.drink = value;
-                  input.glass = defaultGlass(value);
-                });
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            key: ValueKey('glass-$index-${input.drink}-${input.glass}'),
-            initialValue: input.glass,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: '잔/병'),
-            items: [
-              for (final glass in drinkContainers(input.drink))
-                DropdownMenuItem(
-                  value: glass,
-                  child: Text(
-                    glass == '직접 입력'
-                        ? glass
-                        : '$glass (${glassSizes[glass]} cc)',
+          LayoutBuilder(
+            builder: (context, box) {
+              final drink = DropdownButtonFormField<String>(
+                key: ValueKey('drink-$index-${input.drink}'),
+                initialValue: input.drink,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: '주종',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 14,
                   ),
                 ),
-            ],
-            onChanged: (value) {
-              if (value != null) setState(() => input.glass = value);
+                items: [
+                  for (final drink in drinkTypes)
+                    DropdownMenuItem(value: drink, child: Text(drink)),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      input.drink = value;
+                      input.glass = defaultGlass(value);
+                    });
+                  }
+                },
+              );
+              final glass = DropdownButtonFormField<String>(
+                key: ValueKey('glass-$index-${input.drink}-${input.glass}'),
+                initialValue: input.glass,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: '잔/병',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 14,
+                  ),
+                ),
+                items: [
+                  for (final glass in drinkContainers(input.drink))
+                    DropdownMenuItem(
+                      value: glass,
+                      child: Text(
+                        glass == '직접 입력'
+                            ? glass
+                            : '$glass (${glassSizes[glass]} cc)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => input.glass = value);
+                },
+              );
+              final count = TextField(
+                key: ValueKey('count-$index'),
+                controller: input.count,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: '마신 수량',
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 14,
+                  ),
+                  suffixText: containerUnit(input.glass),
+                  hintText: '예: 1 또는 0.5',
+                ),
+              );
+              if (box.maxWidth < 280 ||
+                  MediaQuery.textScalerOf(context).scale(13) > 20) {
+                return Column(
+                  children: [
+                    drink,
+                    const SizedBox(height: 16),
+                    glass,
+                    const SizedBox(height: 16),
+                    count,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: drink),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 3, child: glass),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: count),
+                ],
+              );
             },
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            key: ValueKey('count-$index'),
-            controller: input.count,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              labelText: '마신 수량',
-              suffixText: containerUnit(input.glass),
-              hintText: '예: 1 또는 0.5',
-            ),
           ),
           if (input.glass == '직접 입력') ...[
             const SizedBox(height: 16),
@@ -223,17 +276,26 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
             ),
           ],
           const SizedBox(height: 12),
-          Text('소계 ${drinkNumber(input.total)} cc'),
+          Text(
+            '${input.glass == '직접 입력' ? '직접 입력' : '${glassSizes[input.glass]} cc × ${input.count.text}'} · 소계 ${drinkNumber(input.total)} cc',
+          ),
         ],
       ),
     ),
   );
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     appBar: AppBar(title: Text(widget.record == null ? '음주 기록' : '음주 기록 수정')),
     body: ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(20),
       children: [
+        RecordDateTimeField(
+          label: '기록 시각',
+          value: _recordedAt,
+          onChanged: (v) => setState(() => _recordedAt = v),
+        ),
+        const SizedBox(height: 16),
         for (var index = 0; index < _inputs.length; index++)
           _entry(_inputs[index], index),
         OutlinedButton.icon(
@@ -242,7 +304,7 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
           label: const Text('주종 추가'),
         ),
         const SizedBox(height: 16),
-        const Text('용량은 예시예요. 실제 제품 용량이 다르면 직접 입력해 주세요.'),
+        const WordWrapText('용량이 다르면 직접 입력해 주세요.'),
         const SizedBox(height: 16),
         Text(
           '총 ${drinkNumber(_inputs.fold<double>(0, (sum, i) => sum + i.total))} cc',

@@ -1,0 +1,5 @@
+﻿dau,nutrition_1_day,nutrition_7_day,nutrition_1_month,nutrition_7_month,nutrition_7_pct_conditional,ingredients_daytime_day,ingredients_daytime_month,ingredients_daytime_pct,recipe_cold_day,recipe_cold_month,recipe_90hit_day
+1,9,63,270,1890,0.63,3,90,1,24,720,2.4
+10,90,630,2700,18900,6.3,30,900,10,240,7200,24.0
+100,900,6300,27000,189000,63.0,300,9000,100,2400,72000,240.0
+1000,9000,63000,270000,1890000,630.0,3000,90000,1000,24000,720000,2400.0

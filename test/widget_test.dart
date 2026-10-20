@@ -13,7 +13,7 @@ import 'package:naazza/features/records/data/records_repository.dart';
 import 'package:naazza/features/records/domain/health_record.dart';
 import 'package:naazza/features/meal_analysis/data/demo_meal_analysis_repository.dart';
 import 'package:naazza/features/meal_analysis/data/meal_analysis_repository.dart';
-import 'package:naazza/features/insights/domain/insight_summary.dart';
+import 'package:naazza/features/insights/domain/health_patterns.dart';
 import 'package:naazza/features/tracking_profile/data/demo_tracking_profile_repository.dart';
 import 'package:naazza/features/tracking_profile/data/tracking_profile_repository.dart';
 import 'package:naazza/features/visits/domain/visit_preparation.dart';
@@ -67,6 +67,9 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('배변'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('tracking-next')));
+    await tester.pumpAndSettle();
+    expect(find.text('생년월일'), findsOneWidget);
     final saveButton = find.widgetWithText(FilledButton, '시작하기');
     expect(tester.widget<FilledButton>(saveButton).onPressed, isNotNull);
     await tester.tap(saveButton);
@@ -155,7 +158,7 @@ void main() {
     );
   });
 
-  test('인사이트가 기간 내 기록만 집계하고 핵심 지표를 계산한다', () {
+  test('인사이트는 명시적 상태만 읽고 오래된 식사는 이후 상태에 연결하지 않는다', () {
     final now = DateTime(2026, 8, 26, 20);
     final records = [
       HealthRecord(
@@ -207,13 +210,8 @@ void main() {
         data: const {'energy_kcal': 100},
       ),
     ];
-    final summary = InsightSummary.fromRecords(records, days: 30, now: now);
-    expect(summary.totalRecords, 4);
-    expect(summary.activeDays, 3);
-    expect(summary.averageEnergyKcal, 600);
-    expect(summary.averageBristol, 4);
-    expect(summary.topSymptoms['복통'], 1);
-    expect(summary.dailyActivity.reduce((a, b) => a + b), 4);
+    final patterns = HealthPatterns.fromRecords(records, now: now);
+    expect(patterns.states.single.label, '복통');
   });
 
   test('진료 준비 요약이 이전 내원 이후 기록과 질문을 집계한다', () {

@@ -1,3 +1,5 @@
+import 'package:naazza/features/auth/data/auth_repository.dart';
+import 'package:naazza/features/auth/data/demo_auth_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -35,6 +37,20 @@ List<HealthRecord> sampleRecords() {
           data: {
             'meal_type': hour == 8 ? 'breakfast' : 'dinner',
             'energy_kcal': hour == 8 ? 160 : 480,
+            'items': [
+              {
+                'name': hour == 8 ? '삶은 계란' : '채소 비빔밥',
+                'amount_g': 100,
+                'nutrition': {
+                  'base_amount_g': 100,
+                  'protein_g': hour == 8 ? 12 : 23,
+                  'calcium_mg': 160,
+                  'iron_mg': 3,
+                  'vitamin_c_mg': 20,
+                  'fiber_g': 5,
+                },
+              },
+            ],
           },
         ),
     HealthRecord(
@@ -50,12 +66,16 @@ List<HealthRecord> sampleRecords() {
       id: 'condition',
       userId: 'demo',
       type: HealthRecordType.condition,
-      recordedAt: DateTime(now.year, now.month, now.day, 10),
+      recordedAt: DateTime(now.year, now.month, now.day - 1, 13),
       title: '컨디션 기록',
       summary: '평온해요',
       data: {
         'symptoms': ['복통'],
         'severity': 2,
+        'response_status': 'symptom',
+        'symptom_events': {
+          '복통': {'phase': 'new', 'severity': 2},
+        },
       },
     ),
   ];
@@ -122,10 +142,21 @@ void main() {
       ],
     );
     addTearDown(router.dispose);
+    final auth = DemoAuthRepository();
+    if (preview) {
+      await tester.runAsync(() async {
+        await auth.signIn(username: 'preview', pin: '1234');
+        await auth.updateNutritionProfile(
+          birthDate: DateTime(1990, 5, 12),
+          sex: 'male',
+        );
+      });
+    }
     final base = AppTheme.light;
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          authRepositoryProvider.overrideWithValue(auth),
           recordsProvider.overrideWith(
             () => DesignRecords(empty ? [] : sampleRecords()),
           ),
@@ -252,7 +283,7 @@ void main() {
         final image = await boundary.toImage(pixelRatio: 2);
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
         await File(
-          'artifacts/main-${entry.key}-v30-preview.png',
+          'artifacts/mint-${entry.key}-implemented.png',
         ).writeAsBytes(data!.buffer.asUint8List());
         image.dispose();
       });

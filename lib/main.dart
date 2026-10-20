@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'features/insights/data/food_watch_repository.dart';
 import 'features/meal_analysis/data/ingredient_cache.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,9 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
+        foodWatchRepositoryProvider.overrideWithValue(
+          dependencies.foodWatchRepository,
+        ),
         appConfigProvider.overrideWithValue(dependencies.config),
         authRepositoryProvider.overrideWithValue(dependencies.authRepository),
         trackingProfileRepositoryProvider.overrideWithValue(

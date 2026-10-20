@@ -7,7 +7,7 @@ class LoginBrandMark extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => Semantics(
-    label: '나짜 새싹 노트',
+    label: '새싹 노트',
     image: true,
     child: CustomPaint(size: Size.square(size), painter: _NotebookPainter()),
   );
@@ -32,12 +32,12 @@ class _NotebookPainter extends CustomPainter {
     canvas.drawRRect(
       paper,
       Paint()
-        ..color = const Color(0xFF8F916F)
+        ..color = const Color(0xFFA3B6C5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.8,
     );
     final binding = Paint()
-      ..color = const Color(0xFF86886B)
+      ..color = const Color(0xFF55A8DA)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
@@ -51,7 +51,7 @@ class _NotebookPainter extends CustomPainter {
       );
     }
     final stem = Paint()
-      ..color = const Color(0xFF507A4A)
+      ..color = const Color(0xFF14A88C)
       ..strokeWidth = 2.6
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(const Offset(4, 19), const Offset(2, 1), stem);
@@ -60,14 +60,14 @@ class _NotebookPainter extends CustomPainter {
         ..moveTo(2, 8)
         ..cubicTo(-15, 7, -18, -8, -14, -9)
         ..cubicTo(-3, -10, 4, -1, 2, 8),
-      Paint()..color = const Color(0xFF668B51),
+      Paint()..color = const Color(0xFF51CFB2),
     );
     canvas.drawPath(
       Path()
         ..moveTo(2, 5)
         ..cubicTo(1, -10, 13, -17, 18, -15)
         ..cubicTo(18, -4, 12, 4, 2, 5),
-      Paint()..color = const Color(0xFF4C8054),
+      Paint()..color = const Color(0xFF24AD92),
     );
     canvas.restore();
     canvas.drawPath(
@@ -75,7 +75,7 @@ class _NotebookPainter extends CustomPainter {
         ..moveTo(82, 86)
         ..quadraticBezierTo(76, 75, 91, 68)
         ..quadraticBezierTo(93, 79, 82, 86),
-      Paint()..color = const Color(0xFF9EAF67),
+      Paint()..color = const Color(0xFF41C5AC),
     );
   }
 

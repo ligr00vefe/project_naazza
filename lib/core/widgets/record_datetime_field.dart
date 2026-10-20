@@ -28,7 +28,7 @@ class RecordDateTimeField extends StatelessWidget {
               final date = await showDatePicker(
                 context: context,
                 initialDate: value,
-                firstDate: DateTime(2000),
+                firstDate: DateTime(1),
                 lastDate: DateTime.now(),
               );
               if (date != null && context.mounted) {

@@ -32,7 +32,7 @@ class MealPhotoThumbnail extends ConsumerWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: const ColoredBox(
-            color: Color(0xFFE9EFEA),
+            color: Color(0xFFEAF4FF),
             child: Center(
               child: SizedBox.square(
                 dimension: 18,

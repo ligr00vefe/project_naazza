@@ -1,4 +1,4 @@
-enum HealthRecordType { meal, condition, bowel, visit, alcohol }
+enum HealthRecordType { meal, condition, bowel, visit, alcohol, water }
 
 enum ResponseStatus { symptom, normal, skipped }
 

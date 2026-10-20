@@ -16,7 +16,6 @@ class AccessibilitySettingsPage extends ConsumerWidget {
     final signingOut = ref.watch(authControllerProvider).isLoading;
     return AppPage(
       title: '더보기',
-      subtitle: '나에게 맞는 설정과 기록 관리를 한곳에서.',
       selectedIndex: 4,
       body: AppPageList(
         children: [
@@ -25,6 +24,13 @@ class AccessibilitySettingsPage extends ConsumerWidget {
             padding: EdgeInsets.zero,
             child: Column(
               children: [
+                AppListRow(
+                  title: '내 정보와 영양 기준',
+                  subtitle: '생년월일과 권장량 기준을 확인해요.',
+                  icon: Icons.person_outline_rounded,
+                  onTap: () => context.push('/personal-info'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
                 AppListRow(
                   title: '관리 목표와 추적 항목',
                   subtitle: '목표와 기록할 항목을 변경해요.',

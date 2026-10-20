@@ -1,3 +1,6 @@
+import '../../../core/widgets/app_page.dart';
+import '../../../app/theme/app_design.dart';
+import '../../../core/widgets/app_scaffold.dart';
 import '../domain/alcohol_record.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +21,11 @@ class RecordDetailPage extends ConsumerWidget {
     final date = current?.recordedAt.toLocal();
     final fields = <(String, String)>[
       if (date != null)
-        ('기록 시간', '${date.year}.${date.month}.${date.day} ${recordTime(date)}'),
+        (
+          record.type == HealthRecordType.water ? '기록 날짜' : '기록 시간',
+          '${date.year}.${date.month}.${date.day}${record.type == HealthRecordType.water ? '' : ' ${recordTime(date)}'}',
+        ),
+      if (record.type == HealthRecordType.water) ('마신 물', '${data['cups']}컵'),
       if (record.type == HealthRecordType.bowel) ...[
         (
           '상태',
@@ -30,12 +37,23 @@ class RecordDetailPage extends ConsumerWidget {
         ),
         if (data['had_bowel_movement'] != false)
           ('형태', BowelForm.recordLabel(data['bristol_type'])),
+        (
+          '혈변',
+          switch (data['blood_in_stool']) {
+            true => '있음',
+            false => '없음',
+            _ => '미기록',
+          },
+        ),
         ('통증', '${data['pain'] ?? '미기록'}'),
         ('긴급도', '${data['urgency'] ?? '미기록'}'),
         ('양', '${data['amount'] ?? '미기록'}'),
       ],
       if (record.type == HealthRecordType.condition) ...[
         ('상태', current == null ? '' : compactCondition(current)),
+        for (final e in (data['symptom_events'] as Map? ?? {}).entries)
+          if (e.value is Map)
+            (e.key.toString(), symptomEventLabel(e.value as Map)),
       ],
       if (record.type == HealthRecordType.visit) ...[
         ('기관', '${data['facility_label'] ?? ''}'),
@@ -54,12 +72,13 @@ class RecordDetailPage extends ConsumerWidget {
       ],
       ('메모', '${data['memo'] ?? ''}'),
     ];
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(
         title: Text(switch (record.type) {
           HealthRecordType.bowel => '배변 상세',
           HealthRecordType.visit => '검진·방문 상세',
           HealthRecordType.alcohol => '음주 상세',
+          HealthRecordType.water => '물 마시기 상세',
           _ => '컨디션 상세',
         }),
         actions: [
@@ -69,6 +88,7 @@ class RecordDetailPage extends ConsumerWidget {
                 HealthRecordType.bowel => '/record/bowel',
                 HealthRecordType.visit => '/record/visit',
                 HealthRecordType.alcohol => '/record/alcohol',
+                HealthRecordType.water => '/record/water',
                 _ => '/record/condition',
               }, extra: current),
               child: const Text('수정'),
@@ -84,26 +104,30 @@ class RecordDetailPage extends ConsumerWidget {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                for (final field in fields.where((f) => f.$2.isNotEmpty))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              field.$1,
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(field.$2),
-                          ],
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final field in fields.where((f) => f.$2.isNotEmpty))
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(field.$1, style: AppDesign.caption),
+                              const SizedBox(height: 6),
+                              Text(
+                                field.$2,
+                                style: AppDesign.body.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
+                    ],
                   ),
+                ),
               ],
             ),
     );

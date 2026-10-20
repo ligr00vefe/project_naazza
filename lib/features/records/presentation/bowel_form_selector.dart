@@ -25,14 +25,37 @@ class BowelFormSelector extends StatelessWidget {
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
-          for (final form in BowelForm.values) ...[
-            _FormOption(
-              form: form,
-              selected: form.type == value,
-              onTap: () => onChanged(form.type),
+          Row(
+            children: [
+              for (final form in BowelForm.values)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: _FormOption(
+                      form: form,
+                      selected: form.type == value,
+                      onTap: () => onChanged(form.type),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.blueSurface,
+              borderRadius: BorderRadius.circular(12),
             ),
-            if (form.type != 7) const SizedBox(height: 6),
-          ],
+            child: Text(
+              '$value · ${BowelForm.values.firstWhere((f) => f.type == value).label}',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,
@@ -126,60 +149,26 @@ class _FormOption extends StatelessWidget {
     onTap: onTap,
     excludeSemantics: true,
     child: Material(
-      color: selected ? const Color(0xFFEDF6F0) : AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+      color: selected ? AppColors.primary : AppColors.surface,
+      shape: CircleBorder(
         side: BorderSide(
           color: selected ? AppColors.primary : AppColors.outline,
-          width: selected ? 1.5 : 1,
         ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: ValueKey('bowel-form-${form.type}'),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? const Color(0xFFDCEFE3)
-                      : const Color(0xFFF1F4F2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${form.type}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? AppColors.primary : AppColors.muted,
-                  ),
-                ),
+        child: SizedBox(
+          height: 44,
+          child: Center(
+            child: Text(
+              '${form.type}',
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.text,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  form.label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                size: 20,
-                color: selected ? AppColors.primary : AppColors.muted,
-              ),
-            ],
+            ),
           ),
         ),
       ),
