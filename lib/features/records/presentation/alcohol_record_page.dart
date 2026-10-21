@@ -165,12 +165,14 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
             ],
           ),
           const SizedBox(height: 8),
-          LayoutBuilder(
-            builder: (context, box) {
+          Builder(
+            builder: (context) {
               final drink = DropdownButtonFormField<String>(
                 key: ValueKey('drink-$index-${input.drink}'),
                 initialValue: input.drink,
                 isExpanded: true,
+                isDense: false,
+                itemHeight: null,
                 decoration: const InputDecoration(
                   labelText: '주종',
                   contentPadding: EdgeInsets.symmetric(
@@ -195,6 +197,9 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
                 key: ValueKey('glass-$index-${input.drink}-${input.glass}'),
                 initialValue: input.glass,
                 isExpanded: true,
+                isDense: false,
+                itemHeight: null,
+                menuMaxHeight: MediaQuery.sizeOf(context).height * 0.65,
                 decoration: const InputDecoration(
                   labelText: '잔/병',
                   contentPadding: EdgeInsets.symmetric(
@@ -210,8 +215,7 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
                         glass == '직접 입력'
                             ? glass
                             : '$glass (${glassSizes[glass]} cc)',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                       ),
                     ),
                 ],
@@ -236,26 +240,13 @@ class _AlcoholRecordPageState extends ConsumerState<AlcoholRecordPage> {
                   hintText: '예: 1 또는 0.5',
                 ),
               );
-              if (box.maxWidth < 280 ||
-                  MediaQuery.textScalerOf(context).scale(13) > 20) {
-                return Column(
-                  children: [
-                    drink,
-                    const SizedBox(height: 16),
-                    glass,
-                    const SizedBox(height: 16),
-                    count,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              return Column(
                 children: [
-                  Expanded(flex: 2, child: drink),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 3, child: glass),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 2, child: count),
+                  drink,
+                  const SizedBox(height: 16),
+                  glass,
+                  const SizedBox(height: 16),
+                  count,
                 ],
               );
             },

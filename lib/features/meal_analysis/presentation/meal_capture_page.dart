@@ -21,6 +21,7 @@ import '../../records/presentation/records_controller.dart';
 import '../../records/presentation/meal_category_selector.dart';
 import '../data/meal_analysis_repository.dart';
 import '../domain/meal_analysis.dart';
+import '../domain/barcode_photo_fallback.dart';
 
 class MealCapturePage extends ConsumerStatefulWidget {
   const MealCapturePage({
@@ -29,7 +30,9 @@ class MealCapturePage extends ConsumerStatefulWidget {
     this.autoLookup = true,
     this.publicLookup,
     this.initialRecordedAt,
+    this.barcodeFallback,
   });
+  final BarcodePhotoFallback? barcodeFallback;
   final bool autoLookup;
   final DateTime? initialRecordedAt;
   final PublicProductLookup? publicLookup;
@@ -65,6 +68,11 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
   void initState() {
     super.initState();
     _eatenAt = widget.initialRecordedAt ?? DateTime.now();
+    if (widget.barcodeFallback != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _pick(ImageSource.camera);
+      });
+    }
   }
 
   Future<void> _pick(ImageSource source) async {
@@ -370,6 +378,17 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
         children: [
+          if (widget.barcodeFallback != null) ...[
+            const Text(
+              '제품 사진으로 계속',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '제품명·브랜드·맛·용량이 보이도록 촬영해 주세요. 국내 공공데이터에서 영양정보를 찾고, 현재 제품과 같은지 확인해요.',
+            ),
+            const SizedBox(height: 18),
+          ],
           Text(
             '음식 등록 방식 선택',
             style: Theme.of(context).textTheme.headlineMedium,

@@ -162,10 +162,11 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
   Future<FoodCandidate?> lookupBarcode(String barcode) async {
     final FunctionResponse response;
     try {
-      response = await _client.functions.invoke(
-        'product-barcode',
-        body: {'barcode': barcode},
-      );
+      response = await _client.functions
+          .invoke('product-barcode', body: {'barcode': barcode})
+          .timeout(const Duration(seconds: 18));
+    } on TimeoutException {
+      throw StateError('제품 정보 조회가 지연되고 있어요. 다시 조회하거나 제품 사진으로 검색해 주세요.');
     } on FunctionException catch (error) {
       throw StateError(_functionErrorMessage(error, '제품 조회'));
     }
@@ -206,7 +207,7 @@ class SupabaseMealAnalysisRepository implements MealAnalysisRepository {
       'invalid_barcode' => '바코드 번호를 확인해 주세요.',
       'product_lookup_unavailable' => '제품 정보 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
       'product_nutrition_missing' =>
-        '이 제품에는 영양정보가 등록되지 않았어요. 사진 분석이나 직접 입력을 이용해 주세요.',
+        '제품은 찾았지만 조회처에 열량 정보가 없어요. 제품 사진으로 검색하거나 직접 입력해 주세요.',
       'ai_free_quota_exhausted' =>
         'Gemini 무료 사용 한도를 모두 사용했어요. 한도가 초기화된 뒤 다시 시도해 주세요.',
       'ai_timeout' => '사진 분석 시간이 초과됐어요. 다시 촬영하거나 직접 입력해 주세요.',

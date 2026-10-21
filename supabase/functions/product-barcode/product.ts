@@ -47,18 +47,27 @@ export function productCandidate(product: Product) {
   const fat = number(nutrition.fat_100g)
   const sodium = number(nutrition.sodium_100g) ??
     (number(nutrition.salt_100g) === null ? null : number(nutrition.salt_100g)! / 2.5)
-  // Missing fields must not silently become zero nutrition in saved meals.
-  if ([energy, carbohydrate, protein, fat, sodium].some(value => value === null)) return null
+  // A missing nutrient is unknown, not a reason to discard a known product.
+  if (energy === null) return null
+  const complete = [carbohydrate, protein, fat, sodium].every(value => value !== null)
   const serving = number(product.serving_quantity)
   const whole = number(product.product_quantity)
-  const amountG = product.product_quantity_unit === 'g' && whole && whole <= 3000 ? whole : product.serving_quantity_unit === 'g' && serving && serving <= 3000 ? serving : 100
+  const validUnit = (unit: unknown): unit is 'g' | 'ml' => unit === 'g' || unit === 'ml'
+  const hasWhole = validUnit(product.product_quantity_unit) && whole !== null && whole > 0 && whole <= 10000
+  const hasServing = validUnit(product.serving_quantity_unit) && serving !== null && serving > 0 && serving <= 10000
+  const amountG = hasWhole ? whole! : hasServing ? serving! : 100
+  const amountUnit = hasWhole ? product.product_quantity_unit : hasServing ? product.serving_quantity_unit : 'g'
   const brand = typeof product.brands === 'string' ? product.brands.trim().slice(0, 30) : ''
+  const values = { energyKcal: energy, carbohydrateG: carbohydrate, proteinG: protein, fatG: fat, sodiumMg: sodium === null ? null : sodium * 1000 }
   return {
-    displayName: name, normalizedName: name, confidence: 1, amountG, isProduct: true,
-    tags: ['제품 영양표', ...(brand ? [brand] : [])],
+    displayName: name, normalizedName: name, confidence: 1, amountG, amountUnit, isProduct: true,
+    hasCompleteNutrition: complete,
+    tags: ['Open Food Facts', ...(!complete ? ['일부 영양정보 미등록'] : []), ...(!hasWhole && !hasServing ? ['용량 확인 필요'] : []), ...(brand ? [brand] : [])],
+    nutritionSource: { name, basis: { value: 100, unit: amountUnit }, nutrition: values,
+      source: { provider: 'open_food_facts' } },
     nutrition: {
       baseAmountG: 100, energyKcal: energy, carbohydrateG: carbohydrate,
-      proteinG: protein, fatG: fat, sodiumMg: sodium! * 1000,
+      proteinG: protein, fatG: fat, sodiumMg: values.sodiumMg,
     },
   }
 }

@@ -13,6 +13,7 @@ import '../../records/presentation/records_controller.dart';
 import '../../records/presentation/meal_category_selector.dart';
 import '../data/meal_analysis_repository.dart';
 import '../domain/meal_analysis.dart';
+import '../domain/barcode_photo_fallback.dart';
 
 class BarcodeScannerPage extends ConsumerStatefulWidget {
   const BarcodeScannerPage({super.key, this.initialRecordedAt});
@@ -53,13 +54,16 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
 
   Future<void> _detect(BarcodeCapture capture) async {
     final value = capture.barcodes.firstOrNull?.rawValue;
-    if (value == null || _lookingUp || _product != null) return;
+    if (value == null || _lookingUp || _product != null || _error != null) {
+      return;
+    }
     await _lookup(value);
   }
 
   Future<void> _lookup(String value) async {
-    if (value.trim().isEmpty) return;
+    if (value.trim().isEmpty || _lookingUp) return;
     await _controller.stop();
+    if (!mounted) return;
     setState(() {
       _lookingUp = true;
       _barcode = value.trim();
@@ -73,7 +77,8 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
       setState(() {
         _product = product?.copyWith(isProduct: true);
         if (product == null) {
-          _error = '등록된 제품 정보가 없어요. 제품 사진 분석이나 직접 입력을 이용해 주세요.';
+          _error =
+              '바코드는 확인했지만 조회처에 이 번호의 제품이 등록되어 있지 않아요. 제품 사진으로 검색하거나 직접 입력해 주세요.';
         }
       });
     } catch (error) {
@@ -108,7 +113,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
             data: {
               'meal_type': _mealType,
               'amount_text':
-                  '${product.quantity}개 · 총 ${product.consumedAmountG}g',
+                  '${product.quantity}개 · 총 ${product.consumedAmountG}${product.amountUnit}',
               'energy_kcal': nutrition.energyKcal,
               'small_meal': _smallMeal,
               'barcode': _barcode,
@@ -131,7 +136,13 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
       _barcode = null;
       _error = null;
     });
-    _controller.start();
+  }
+
+  void _continueWithPhoto() {
+    context.pushReplacement(
+      recordDateRoute('/record/meal-photo', _recordedAt),
+      extra: BarcodePhotoFallback(barcode: _barcode),
+    );
   }
 
   @override
@@ -144,6 +155,8 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
           '제품 바코드를 화면 안에 맞춰주세요',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
+        const SizedBox(height: 8),
+        const Text('조회처에 등록된 제품만 검색돼요. 미등록 제품은 사진으로 검색할 수 있어요.'),
         const SizedBox(height: 6),
         const Text(
           '영양정보는 저장 전에 반드시 확인해 주세요.',
@@ -156,7 +169,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
           onChanged: (v) => setState(() => _recordedAt = v),
         ),
         const SizedBox(height: 16),
-        if (_product == null && !_lookingUp)
+        if (_product == null && !_lookingUp && _error == null)
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: SizedBox(
@@ -186,7 +199,21 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
             color: const Color(0xFFFFF4EF),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(_error!),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(_error!),
+                  const SizedBox(height: 12),
+                  const Text('제품 사진 → 제품명 확인 → 국내 공공데이터 검색'),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    key: const ValueKey('barcode-photo-fallback'),
+                    onPressed: _continueWithPhoto,
+                    icon: const Icon(Icons.photo_camera_rounded),
+                    label: const Text('제품 사진으로 계속'),
+                  ),
+                ],
+              ),
             ),
           ),
         if (_product != null) ...[
@@ -224,15 +251,16 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
         const SizedBox(height: 12),
         if (_error != null)
           OutlinedButton(onPressed: _retry, child: const Text('다시 스캔')),
-        OutlinedButton.icon(
-          onPressed: _lookingUp
-              ? null
-              : () => context.push(
-                  recordDateRoute('/record/meal-photo', _recordedAt),
-                ),
-          icon: const Icon(Icons.photo_camera_rounded),
-          label: const Text('제품 사진으로 AI 분석하기'),
-        ),
+        if (_error == null)
+          OutlinedButton.icon(
+            onPressed: _lookingUp
+                ? null
+                : () => context.push(
+                    recordDateRoute('/record/meal-photo', _recordedAt),
+                  ),
+            icon: const Icon(Icons.photo_camera_rounded),
+            label: const Text('제품 사진으로 AI 분석하기'),
+          ),
         TextButton(
           onPressed: () =>
               context.push(recordDateRoute('/record/meal', _recordedAt)),
@@ -266,8 +294,12 @@ class _ProductCard extends StatelessWidget {
           Text(product.name, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Text(
-            '1개당 ${product.amountG}g · 총 ${product.consumedNutrition.energyKcal.round()} kcal',
+            '${product.tags.contains('용량 확인 필요') ? '기준량' : '1개당'} ${product.amountG}${product.amountUnit} · 총 ${product.consumedNutrition.energyKcal.round()} kcal',
           ),
+          if (!product.hasCompleteNutrition)
+            const Text('일부 영양정보가 없어 확인된 항목만 기록해요.'),
+          if (product.tags.contains('용량 확인 필요'))
+            const Text('포장 용량이 등록되어 있지 않아요. 섭취량을 확인해 주세요.'),
           TextButton(
             onPressed: () async {
               final food = await showDialog<FoodCandidate>(

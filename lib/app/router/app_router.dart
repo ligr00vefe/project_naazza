@@ -12,6 +12,7 @@ import '../../features/export/presentation/export_page.dart';
 import '../../features/insights/presentation/insights_page.dart';
 import '../../features/meal_analysis/presentation/meal_capture_page.dart';
 import '../../features/meal_analysis/presentation/barcode_scanner_page.dart';
+import '../../features/meal_analysis/domain/barcode_photo_fallback.dart';
 import '../../features/records/domain/health_record.dart';
 import '../../features/records/domain/record_draft_date.dart';
 import '../../features/records/presentation/bowel_record_page.dart';
@@ -77,6 +78,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/record/meal-photo',
         builder: (_, s) => MealCapturePage(
           initialRecordedAt: parseRecordDraftDate(s.uri.queryParameters['at']),
+          barcodeFallback: s.extra is BarcodePhotoFallback
+              ? s.extra as BarcodePhotoFallback
+              : null,
         ),
       ),
       GoRoute(

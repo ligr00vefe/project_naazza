@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:naazza/features/auth/data/demo_auth_repository.dart';
 import 'package:naazza/features/records/data/demo_records_repository.dart';
 import 'package:naazza/features/records/data/records_repository.dart';
 import 'package:naazza/features/records/domain/health_record.dart';
+import 'package:naazza/features/records/domain/alcohol_record.dart';
 import 'package:naazza/features/records/domain/meal_group.dart';
 import 'package:naazza/features/records/presentation/alcohol_record_page.dart';
 import 'package:naazza/features/records/presentation/records_calendar_page.dart';
@@ -14,6 +16,83 @@ import 'package:naazza/features/meal_analysis/presentation/food_search_dialog.da
 import 'meal_timeline_test.dart' show meal, open;
 
 void main() {
+  for (final (width, scale) in [
+    (320.0, 1.0),
+    (390.0, 1.0),
+    (390.0, 1.5),
+    (320.0, 2.0),
+  ]) {
+    testWidgets('음주 선택값과 목록 전체 표시: 화면 $width, 글자 $scale', (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = DemoRecordsRepository();
+      final router = await open(
+        tester,
+        repo,
+        location: '/record/alcohol',
+        scale: scale,
+      );
+      addTearDown(router.dispose);
+      final drink = find.byType(DropdownButtonFormField<String>).first;
+      await tester.ensureVisible(drink);
+      await tester.tap(drink);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('맥주').last);
+      await tester.pumpAndSettle();
+      final glass = find.byType(DropdownButtonFormField<String>).at(1);
+      expect(tester.getSize(glass).width, greaterThan(width - 100));
+      await tester.ensureVisible(glass);
+      await tester.tap(glass);
+      await tester.pumpAndSettle();
+      // Every menu option, including the longest PET label, must remain readable.
+      for (final label in drinkContainers('맥주')) {
+        final text = label == '직접 입력'
+            ? label
+            : '$label (${glassSizes[label]} cc)';
+        final option = find.text(text).last;
+        await tester.ensureVisible(option);
+        await tester.pumpAndSettle();
+        final paragraph = tester.renderObject<RenderParagraph>(option);
+        expect(paragraph.didExceedMaxLines, isFalse, reason: text);
+        expect(paragraph.overflow, isNot(TextOverflow.ellipsis), reason: text);
+        for (var i = 0; i < text.length; i++) {
+          if (text[i].trim().isEmpty) continue;
+          final boxes = paragraph.getBoxesForSelection(
+            TextSelection(baseOffset: i, extentOffset: i + 1),
+          );
+          expect(boxes, isNotEmpty);
+          for (final box in boxes) {
+            expect(
+              box.right,
+              lessThanOrEqualTo(paragraph.size.width + 0.1),
+              reason: text,
+            );
+            expect(
+              box.bottom,
+              lessThanOrEqualTo(paragraph.size.height + 0.1),
+              reason: text,
+            );
+          }
+        }
+      }
+      final longest = find.text('맥주 페트 1.6L (1600 cc)').last;
+      await tester.ensureVisible(longest);
+      await tester.tap(longest);
+      await tester.pumpAndSettle();
+      expect(find.text('맥주 페트 1.6L (1600 cc)'), findsOneWidget);
+      final count = find.byKey(const ValueKey('count-0'));
+      await tester.ensureVisible(count);
+      await tester.enterText(count, '2');
+      await tester.tap(find.text('기록 저장하기'));
+      await tester.pumpAndSettle();
+      final saved = (await repo.list('demo-user')).single;
+      expect(saved.data['total_ml'], 3200);
+      expect((saved.data['items'] as List).single['glass_label'], '맥주 페트 1.6L');
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('기존 와인잔 용량은 옵션 통합 후에도 보존되고 추가 주종을 삭제할 수 있다', (tester) async {
     final repo = DemoRecordsRepository();
     final old = HealthRecord(
@@ -157,8 +236,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('맥주').last);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, '2.5');
+    await tester.ensureVisible(find.byKey(const ValueKey('count-0')));
+    await tester.enterText(find.byKey(const ValueKey('count-0')), '2.5');
+    await tester.ensureVisible(
+      find.byType(DropdownButtonFormField<String>).at(1),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('맥주컵 300 (300 cc)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('맥주컵 300 (300 cc)'));
     await tester.pumpAndSettle();
@@ -170,9 +256,20 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('주종 추가'));
     await tester.pumpAndSettle();
-    final lastContainer = find.byType(DropdownButtonFormField<String>).last;
-    await tester.ensureVisible(lastContainer);
+    final lastContainer = find.byKey(const ValueKey('glass-1-소주-소주잔'));
+    await tester.scrollUntilVisible(
+      lastContainer,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(lastContainer);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('소주병 (360 cc)'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('소주병 (360 cc)').last);
     await tester.pumpAndSettle();
