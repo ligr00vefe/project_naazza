@@ -162,7 +162,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('조회처에 등록된 제품만'), findsOneWidget);
+      expect(find.textContaining('조회처에 등록된 제품 정보만'), findsOneWidget);
       expect(find.textContaining('2018'), findsNothing);
       final manual = find.widgetWithText(TextField, '바코드 번호 직접 입력');
       await tester.scrollUntilVisible(

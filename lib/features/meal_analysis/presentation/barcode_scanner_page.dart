@@ -1,5 +1,6 @@
 import '../../../core/widgets/app_scaffold.dart';
 import 'food_portion_dialog.dart';
+import 'product_lookup_notice.dart';
 import '../../../core/widgets/record_datetime_field.dart';
 import '../../records/domain/record_draft_date.dart';
 import 'package:flutter/material.dart';
@@ -156,7 +157,7 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 8),
-        const Text('조회처에 등록된 제품만 검색돼요. 미등록 제품은 사진으로 검색할 수 있어요.'),
+        const Text(productLookupNotice),
         const SizedBox(height: 6),
         const Text(
           '영양정보는 저장 전에 반드시 확인해 주세요.',
@@ -203,8 +204,6 @@ class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(_error!),
-                  const SizedBox(height: 12),
-                  const Text('제품 사진 → 제품명 확인 → 국내 공공데이터 검색'),
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     key: const ValueKey('barcode-photo-fallback'),

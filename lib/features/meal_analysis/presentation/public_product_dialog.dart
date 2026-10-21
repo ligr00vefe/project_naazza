@@ -1,4 +1,5 @@
 import '../data/ingredient_cache.dart';
+import 'product_lookup_notice.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -172,6 +173,8 @@ class _PublicProductDialogState extends State<PublicProductDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(productLookupNotice),
+            const SizedBox(height: 12),
             Text('사진에서 읽은 이름: ${widget.photo.name}'),
             const SizedBox(height: 8),
             TextField(

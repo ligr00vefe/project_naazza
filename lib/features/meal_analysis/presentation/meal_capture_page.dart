@@ -2,6 +2,7 @@ import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/widgets/record_datetime_field.dart';
 import '../../records/domain/record_draft_date.dart';
 import 'public_product_dialog.dart';
+import 'product_lookup_notice.dart';
 import '../domain/photo_food_resolution.dart';
 import '../../records/presentation/meal_record_page.dart';
 import '../domain/photo_failure.dart';
@@ -395,6 +396,11 @@ class _MealCapturePageState extends ConsumerState<MealCapturePage> {
           ),
           const Text(
             '음식이나 제품 포장 사진을 촬영해 주세요. 제품명과 영양표가 잘 보이면 인식에 도움이 돼요. AI 결과는 저장 전에 확인해 주세요.',
+            style: TextStyle(color: AppColors.muted),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            productLookupNotice,
             style: TextStyle(color: AppColors.muted),
           ),
           const SizedBox(height: 18),
