@@ -147,6 +147,7 @@ void main() {
       await tester.runAsync(() async {
         await auth.signIn(username: 'preview', pin: '1234');
         await auth.updateNutritionProfile(
+          displayName: '민트',
           birthDate: DateTime(1990, 5, 12),
           sex: 'male',
         );
@@ -283,7 +284,7 @@ void main() {
         final image = await boundary.toImage(pixelRatio: 2);
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
         await File(
-          'artifacts/mint-${entry.key}-implemented.png',
+          'artifacts/welcome-${entry.key}-implemented.png',
         ).writeAsBytes(data!.buffer.asUint8List());
         image.dispose();
       });

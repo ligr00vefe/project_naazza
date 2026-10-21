@@ -26,12 +26,14 @@ class AuthController extends AsyncNotifier<void> {
     String username,
     String pin, {
     DateTime? birthDate,
+    String? sex,
     bool rememberId = false,
     bool autoLogin = false,
   }) => _authenticate(
     username,
     pin,
     signUp: true,
+    sex: sex,
     birthDate: birthDate,
     rememberId: rememberId,
     autoLogin: autoLogin,
@@ -41,6 +43,7 @@ class AuthController extends AsyncNotifier<void> {
     String username,
     String pin, {
     bool signUp = false,
+    String? sex,
     DateTime? birthDate,
     required bool rememberId,
     required bool autoLogin,
@@ -55,6 +58,7 @@ class AuthController extends AsyncNotifier<void> {
         await repository.signUp(
           username: username.trim(),
           pin: pin,
+          sex: sex,
           birthDate: birthDate,
         );
       } else {

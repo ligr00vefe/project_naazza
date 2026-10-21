@@ -42,35 +42,7 @@ class NutritionProfileFields extends StatelessWidget {
           ),
         ),
       const SizedBox(height: 18),
-      const Text('성별', style: AppDesign.body),
-      const SizedBox(height: 8),
-      LayoutBuilder(
-        builder: (context, box) => Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final item in const [
-              ('male', '남성', Icons.male_rounded),
-              ('female', '여성', Icons.female_rounded),
-              ('', '나중에 선택', Icons.check_circle_outline),
-            ])
-              SizedBox(
-                width: MediaQuery.textScalerOf(context).scale(13) > 20
-                    ? box.maxWidth
-                    : (box.maxWidth - 16) / 3,
-                child: AppChoiceTile(
-                  key: ValueKey('nutrition-sex-${item.$1}'),
-                  label: item.$2,
-                  icon: item.$3,
-                  selected: sex == (item.$1.isEmpty ? null : item.$1),
-                  onTap: enabled
-                      ? () => onSex(item.$1.isEmpty ? null : item.$1)
-                      : null,
-                ),
-              ),
-          ],
-        ),
-      ),
+      ProfileSexSelector(value: sex, onChanged: onSex, enabled: enabled),
       if (sex == 'female') ...[
         const SizedBox(height: 18),
         DropdownButtonFormField<String>(
@@ -92,6 +64,59 @@ class NutritionProfileFields extends StatelessWidget {
       const WordWrapText(
         '내 정보에 맞춰 권장량을 비교해요. 나중에 더보기에서 입력하거나 바꿀 수 있어요.',
         style: AppDesign.caption,
+      ),
+    ],
+  );
+}
+
+class ProfileSexSelector extends StatelessWidget {
+  const ProfileSexSelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.enabled = true,
+    this.compact = false,
+  });
+  final String? value;
+  final ValueChanged<String?> onChanged;
+  final bool enabled, compact;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text('성별 · 필수', style: AppDesign.body),
+      const SizedBox(height: 8),
+      LayoutBuilder(
+        builder: (context, box) => Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final item in const [
+              ('male', '남성', Icons.male_rounded),
+              ('female', '여성', Icons.female_rounded),
+            ])
+              SizedBox(
+                width: MediaQuery.textScalerOf(context).scale(13) > 20
+                    ? box.maxWidth
+                    : (box.maxWidth - 8) / 2,
+                child: compact
+                    ? ChoiceChip(
+                        key: ValueKey('nutrition-sex-${item.$1}'),
+                        label: Text(item.$2),
+                        avatar: Icon(item.$3, size: 18),
+                        selected: value == item.$1,
+                        onSelected: enabled ? (_) => onChanged(item.$1) : null,
+                      )
+                    : AppChoiceTile(
+                        key: ValueKey('nutrition-sex-${item.$1}'),
+                        label: item.$2,
+                        icon: item.$3,
+                        selected: value == item.$1,
+                        onTap: enabled ? () => onChanged(item.$1) : null,
+                      ),
+              ),
+          ],
+        ),
       ),
     ],
   );

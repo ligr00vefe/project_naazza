@@ -5,6 +5,7 @@ class AuthUser {
     required this.id,
     required this.username,
     this.email,
+    this.displayName,
     this.birthDate,
     this.nutritionSex,
     this.nutritionLifeStage,
@@ -14,6 +15,7 @@ class AuthUser {
   final String id;
   final String username;
   final String? email;
+  final String? displayName;
   final String role;
   final DateTime? birthDate;
   final String? nutritionSex, nutritionLifeStage;

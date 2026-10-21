@@ -1,4 +1,5 @@
 import '../domain/birth_date.dart';
+import '../domain/profile_validation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import '../domain/auth_failure.dart';
 import '../domain/auth_user.dart';
@@ -19,6 +20,7 @@ class SupabaseAuthRepository implements AuthRepository {
     return AuthUser(
       id: user.id,
       username: username,
+      displayName: user.userMetadata?['display_name']?.toString(),
       birthDate: parseBirthDate(user.userMetadata?['birth_date']),
       nutritionSex: user.userMetadata?['nutrition_sex'] as String?,
       nutritionLifeStage: user.userMetadata?['nutrition_life_stage'] as String?,
@@ -61,15 +63,18 @@ class SupabaseAuthRepository implements AuthRepository {
   Future<void> signUp({
     required String username,
     required String pin,
+    String? sex,
     DateTime? birthDate,
   }) async {
     _validateBirthDate(birthDate);
+    final selectedSex = requireProfileSex(sex);
     try {
       final response = await _client.functions.invoke(
         'username-signup',
         body: {
           'username': _normalize(username),
           'pin': pin,
+          'nutrition_sex': selectedSex,
           if (birthDate != null) 'birth_date': birthDateText(birthDate),
         },
       );
@@ -101,12 +106,15 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> updateNutritionProfile({
+    String? displayName,
     DateTime? birthDate,
     String? sex,
     String? lifeStage,
   }) async {
     _validateBirthDate(birthDate);
     if (currentUser == null) throw const AuthFailure('로그인 후 다시 시도해 줘.');
+    final selectedSex = requireProfileSex(sex ?? currentUser?.nutritionSex);
+    final name = displayName == null ? null : normalizeDisplayName(displayName);
     if ((sex != null && !['male', 'female'].contains(sex)) ||
         (lifeStage != null &&
             ![
@@ -123,8 +131,11 @@ class SupabaseAuthRepository implements AuthRepository {
         UserAttributes(
           data: {
             'birth_date': birthDate == null ? null : birthDateText(birthDate),
-            'nutrition_sex': sex,
-            'nutrition_life_stage': sex == 'male' ? 'general' : lifeStage,
+            if (displayName != null) 'display_name': name,
+            'nutrition_sex': selectedSex,
+            'nutrition_life_stage': selectedSex == 'male'
+                ? 'general'
+                : lifeStage,
           },
         ),
       );

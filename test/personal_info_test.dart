@@ -23,17 +23,25 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('nutrition-sex-male')));
+    await tester.pumpAndSettle();
     expect(find.byType(BirthDateField), findsOneWidget);
     tester
         .widget<BirthDateField>(find.byType(BirthDateField))
         .onChanged(DateTime(2000, 1, 1));
     await tester.pump();
     expect(find.text('만 ${DateTime.now().year - 2000}세'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('personal-info-save')),
+    );
     await tester.tap(find.byKey(const ValueKey('personal-info-save')));
     await tester.pumpAndSettle();
     expect(auth.currentUser!.birthDate, DateTime(2000, 1, 1));
     await tester.tap(find.byTooltip('생년월일 삭제'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('personal-info-save')),
+    );
     await tester.tap(find.byKey(const ValueKey('personal-info-save')));
     await tester.pumpAndSettle();
     expect(auth.currentUser!.birthDate, isNull);

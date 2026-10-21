@@ -20,10 +20,10 @@ import 'package:naazza/features/visits/domain/visit_preparation.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
-  test('데모 회원가입은 아이디와 PIN으로 바로 로그인한다', () async {
+  test('데모 회원가입은 성별을 필수로 저장하고 로그인한다', () async {
     final repository = DemoAuthRepository();
 
-    await repository.signUp(username: 'tester', pin: '1234');
+    await repository.signUp(username: 'tester', pin: '1234', sex: 'male');
     expect(repository.currentUser?.username, 'tester');
   });
   testWidgets('로그인 후 맞춤 추적 프로필을 저장하고 홈으로 이동한다', (tester) async {
@@ -72,6 +72,11 @@ void main() {
     expect(find.text('생년월일'), findsOneWidget);
     final saveButton = find.widgetWithText(FilledButton, '시작하기');
     expect(tester.widget<FilledButton>(saveButton).onPressed, isNotNull);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('nutrition-sex-male')),
+    );
+    await tester.tap(find.byKey(const ValueKey('nutrition-sex-male')));
+    await tester.pumpAndSettle();
     await tester.tap(saveButton);
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
@@ -84,10 +89,22 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('최근 기록'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('복통'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('복통'), findsWidgets);
 
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, 900));
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
+    await tester.scrollUntilVisible(
+      find.text('식사 기록').first,
+      -250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await Scrollable.ensureVisible(
+      tester.element(find.text('식사 기록').first),
+      alignment: .5,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('식사 기록').first);
     await tester.pumpAndSettle();

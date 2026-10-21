@@ -143,7 +143,7 @@ void main() {
       );
       await next(tester);
       expect(find.text('생년월일'), findsOneWidget);
-      expect(find.text('성별'), findsOneWidget);
+      expect(find.text('성별 · 필수'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('nutrition-sex-female')));
       await tester.pumpAndSettle();
       await tester.pumpAndSettle();

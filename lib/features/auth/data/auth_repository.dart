@@ -8,10 +8,12 @@ abstract interface class AuthRepository {
   Future<void> signUp({
     required String username,
     required String pin,
+    String? sex,
     DateTime? birthDate,
   });
   Future<void> updateBirthDate(DateTime? birthDate);
   Future<void> updateNutritionProfile({
+    String? displayName,
     DateTime? birthDate,
     String? sex,
     String? lifeStage,

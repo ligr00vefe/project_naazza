@@ -41,7 +41,7 @@ void main() {
       expect(find.byType(TextField), findsNothing);
       expect(
         find.byWidgetPredicate(
-          (w) => w is WordWrapText && w.text == '하루 물 5~7컵 마시',
+          (w) => w is WordWrapText && w.text == '하루 물 5~7컵 마시기',
         ),
         findsOneWidget,
       );

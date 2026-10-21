@@ -1,4 +1,6 @@
 import '../../../app/theme/app_colors.dart';
+import '../../auth/data/auth_repository.dart';
+import 'welcome_banner.dart';
 import '../../records/presentation/meal_photo.dart';
 import '../../insights/presentation/nutrient_insight_card.dart';
 import '../../../core/widgets/word_wrap_text.dart';
@@ -18,6 +20,9 @@ class HomePage extends ConsumerWidget {
   const HomePage({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user =
+        ref.watch(authStateProvider).value ??
+        ref.read(authRepositoryProvider).currentUser;
     final profile = ref.watch(trackingProfileProvider).value;
     final quickMetrics =
         profile?.metrics.where((item) => item.enabled).take(4) ?? [];
@@ -75,6 +80,8 @@ class HomePage extends ConsumerWidget {
       ],
       body: AppPageList(
         children: [
+          WelcomeBanner(displayName: user?.displayName),
+          const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(bottom: 18),
             child: Text(

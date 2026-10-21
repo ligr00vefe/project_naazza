@@ -1,3 +1,5 @@
+import 'nutrition_profile_fields.dart';
+import '../domain/profile_validation.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../data/login_preferences.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +21,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _username = TextEditingController();
   final _pin = TextEditingController();
   bool _isSignUp = false;
+  String? _signUpSex;
   bool _obscurePin = true;
   bool _rememberId = false, _autoLogin = false, _settingsReady = false;
   @override
@@ -63,6 +66,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _show('비밀번호를 확인해 줘.');
       return false;
     }
+    if (_isSignUp && !hasProfileSex(_signUpSex)) {
+      _show('성별을 선택해 주세요.');
+      return false;
+    }
     return true;
   }
 
@@ -77,6 +84,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await controller.signUp(
         _username.text,
         _pin.text,
+        sex: _signUpSex,
         rememberId: _rememberId,
         autoLogin: _autoLogin,
       );
@@ -248,6 +256,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   ),
                                 ),
                               ),
+                              if (_isSignUp) ...[
+                                const SizedBox(height: 12),
+                                ProfileSexSelector(
+                                  value: _signUpSex,
+                                  enabled: enabled,
+                                  compact: true,
+                                  onChanged: (v) =>
+                                      setState(() => _signUpSex = v),
+                                ),
+                              ],
                               const SizedBox(height: 4),
                               Wrap(
                                 spacing: 18,

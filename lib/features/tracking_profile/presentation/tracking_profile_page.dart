@@ -1,3 +1,4 @@
+import '../../auth/domain/profile_validation.dart';
 import '../../../core/widgets/app_page.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/data/auth_repository.dart';
@@ -86,6 +87,12 @@ class _TrackingProfilePageState extends ConsumerState<TrackingProfilePage> {
 
   Future<void> _save() async {
     if (_conditions.isEmpty || ref.read(trackingProfileProvider).isLoading) {
+      return;
+    }
+    if (!widget.editing && !hasProfileSex(_sex)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('성별을 선택해 주세요.')));
       return;
     }
     setState(() => _saving = true);
